@@ -129,6 +129,23 @@ input = input %>%
     arrange(aerodrome,page,location,line,chunk)
 
 
+## Add names to aerodromes. Do as a join so no codes get dropped on a filter for the name.
+##
+##   aerodrome  page location  line chunk text       wrap    x0    x1    y0    y1 level
+##   <fct>     <dbl> <fct>    <int> <int> <chr>     <dbl> <dbl> <dbl> <dbl> <dbl> <int>
+## 1 CPE2          1 label        0     0 REF        14.0  27.4  41.4  59.7  67.5     0
+## 2 CPE2          1 label        1     0 OPR        15.2  27.4  42.6  88.9  96.7     0
+## 3 CPE2          1 label        2     0 FLT PLN    12.8  27.4  56.2 110.  118.      0
+## 4 CPE2          1 label        3     0 FIC        10.4  60.1  70.5 119.  127.      1
+## 5 CPE2          1 label        4     0 HELI DATA  15.9  27.4  64.7 148.  156.      0
+
+aerodromes = left_join(aerodromes,
+                       input %>%
+                       ungroup() %>%
+                       filter(location=='header',line==4,chunk==1) %>%
+                       select(aerodrome,name=text))
+
+
 ## Classify label depths as 1 = left aligned and 2 = right aligned.
 ##
 ##   aerodrome  page location  line chunk text       wrap    x0    x1    y0    y1 level
