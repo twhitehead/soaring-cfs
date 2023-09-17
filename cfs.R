@@ -501,6 +501,7 @@ pages = pages %>%
               join_by(page,between(line,header0,header1)))
 
 
+## Extract the table columns by being under the labels.
 ##
 ##    page    y0    y1    x0    x1 width height text              line chunk column
 ##   <dbl> <dbl> <dbl> <dbl> <dbl> <dbl>  <dbl> <chr>            <int> <int>  <dbl>
