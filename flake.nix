@@ -31,6 +31,7 @@
         paths = with self.packages.x86_64-linux; [
           pythonPlotNine
           rGGPlot
+          imagemagick
         ];
       };
     };

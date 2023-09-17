@@ -12,8 +12,9 @@ accs = c('CZEG','CZQM','CZQX','CZUL',   # Area control centers (not actual aerod
 split_y = 32.7+4                        # Split point between header and body
 split_x = mean(c(70.5,77.79))           # Split point between labels and text
 
-picture_x0 = 201                        # Left-hand edge for all upper-right pictures
-picture_x1 = 339                        # Right-hand edge for all upper-right pictures
+picture_x0 = 24                         # Left-hand edge for full width pictures
+picture_x1 = 201                        # Left-hand edge for all upper-right pictures
+picture_x2 = 339                        # Right-hand edge for all upper-right pictures
 picture_y0 = 58                         # Top edge for all upper-right pictures
 picture_y1 = 191                        # Bottom edge for all upper-right pictures
 
@@ -363,7 +364,32 @@ items = items %>%
               y0=min(y0),y1=max(y1))
 
 
-## Compute the right hand margin as picture_x0 until surpased and then picture_x1.
+## Extract picture box based on distance from aerodrome header to first text.
+##
+##   aerodrome  page   iy0   iy1    x0    x1    y0    y1
+##   <fct>     <dbl> <dbl> <dbl> <dbl> <dbl> <dbl> <dbl>
+## 1 CPE2          3  54.4  55.7   201   338  54.4  185.
+## 2 CNS4          4  54.4  55.7   201   338  54.4  185.
+## 3 CAP2          5  54.4  55.7   201   338  54.4  185.
+## 4 CPJ2          6  54.4  55.7   201   338  54.4  185.
+## 5 CPZ2          7  54.4  55.7   201   338  54.4  185.
+
+images = aerodromes %>%
+    select(page,aerodrome,iy0=y) %>%
+    left_join(items %>%
+              left_join(labels) %>%
+              rename(iy1=y)) %>%
+    arrange(item,page,line,chunk) %>%
+    group_by(aerodrome) %>%
+    summarize(page=first(page),
+              iy0=first(iy0)+1,iy1=first(iy1)) %>%
+    mutate(x0=if_else(iy1-iy0 < 36,picture_x1,picture_x0),
+           x1=picture_x2,
+           y0=iy0,
+           y1=if_else(iy1-iy0 < 36,y0+picture_y1-picture_y0,iy1))
+
+
+## Compute the right hand margin as picture_x1 until surpased and then picture_x2.
 ##
 ##    item  page  line chunk text                                  wrap1 wrap2    x0    x1    y0    y1 margin
 ##   <int> <dbl> <int> <int> <chr>                                 <dbl> <dbl> <dbl> <dbl> <dbl> <dbl>  <dbl>
@@ -377,7 +403,7 @@ items = items %>%
     left_join(select(labels,aerodrome,item)) %>%
     arrange(item,page,line,chunk) %>%
     group_by(aerodrome) %>%
-    mutate(margin=cummax(if_else(x1 < picture_x0,picture_x0,picture_x1))) %>%
+    mutate(margin=cummax(if_else(x1 < picture_x1,picture_x1,picture_x2))) %>%
     ungroup() %>%
     select(!aerodrome)
 
@@ -801,3 +827,23 @@ comms = final %>%
     mutate(frequency=str_extract(text,'[0-9]{3}\\.[0-9]{1,3}'),
            contact=label2) %>%
     select(aerodrome,item,page,line,contact,frequency)
+
+
+## An example of extracting the images (requires imagemagik).
+##
+##  aerodrome  page command                                                                   result
+##  <fct>     <dbl> <chr>                                                                     <chr>
+## 1 CPE2          3 magick -density 288 -extract 552x532+804+222 ecfs_04_en.pdf'[2]' CPE2.jpg magick -density 288 -extract 552x532+804+222 ecfs_04_en.pdf'[2]' CPE2.jpg
+## 2 CNS4          4 magick -density 288 -extract 552x532+804+222 ecfs_04_en.pdf'[3]' CNS4.jpg magick -density 288 -extract 552x532+804+222 ecfs_04_en.pdf'[3]' CNS4.jpg
+## 3 CAP2          5 magick -density 288 -extract 552x532+804+222 ecfs_04_en.pdf'[4]' CAP2.jpg magick -density 288 -extract 552x532+804+222 ecfs_04_en.pdf'[4]' CAP2.jpg
+## 4 CPJ2          6 magick -density 288 -extract 552x532+804+222 ecfs_04_en.pdf'[5]' CPJ2.jpg magick -density 288 -extract 552x532+804+222 ecfs_04_en.pdf'[5]' CPJ2.jpg
+## 5 CPZ2          7 magick -density 288 -extract 552x532+804+222 ecfs_04_en.pdf'[6]' CPZ2.jpg magick -density 288 -extract 552x532+804+222 ecfs_04_en.pdf'[6]' CPZ2.jpg
+
+imagemagik = images %>%
+    mutate(aerodrome,page,
+           command=sprintf('magick -density 288 -extract %.0fx%.0f+%.0f+%.0f %s.pdf\'[%.0f]\' %s.jpg',
+                           (x1-x0)*4,(y1-y0)*4,x0*4,y0*4,basename,page-1,aerodrome),
+           result=map_int(command,system),
+           .keep='none')
+
+
