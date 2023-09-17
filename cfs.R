@@ -605,7 +605,7 @@ aerodromes = aerodromes %>%
 
 aerodromes = aerodromes %>%
     ungroup() %>%
-    mutate(breakout = str_match(text,'(?<name>.*) (?<province>[A-Z]{2})(?: \\((?<type>[^)]+)\\))?') %>%
+    mutate(breakout = str_match(text,'(?<name>.*[^,]),? (?<province>[A-Z]{2})(?: \\((?<type>[^)]+)\\))?') %>%
                as_tibble(.name_repair='unique')) %>%
     unpack(breakout) %>%
     mutate(aerodrome,name,
