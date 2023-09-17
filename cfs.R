@@ -719,3 +719,85 @@ final = prob %>%
     summarize(text=str_flatten(text,' '),
               page=first(page),
               line=first(line))
+
+
+## ----------------------------------------------------------------------------------------------------------------
+## SAMPLE OUTPUT
+
+## An example of extracting the longitude and latitude in decimal degrees and elevation.
+##
+##   aerodrome latitude longitude
+##   <fct>        <dbl>     <dbl>
+## 1 CPE2          43.8      79.0
+## 2 CNS4          45.3      74.6
+## 3 CAP2          44.2      81.0
+## 4 CPJ2          44.1      79.8
+## 5 CPZ2          44.2      79.9
+
+locations = final %>%
+    arrange(item,page,line,chunk) %>%
+    group_by(item) %>%
+    summarize(text=str_flatten(text,' '),
+              page=first(page),
+              line=first(line)) %>%
+    left_join(select(labels,item,aerodrome,label1,label2)) %>%
+    filter(label1=='REF',is.na(label2)) %>%
+    mutate(location = str_match(text,'N(?<latD>\\d{2}) (?<latM>\\d{2})(?: (?<latS>\\d{2}))? W(?<lonD>\\d{2,3}) (?<lonM>\\d{2})(?: (?<lonS>\\d{2}))?') %>%
+               as_tibble(.name_repair='unique'),
+           elevation = as.integer(str_extract(text,'Elev (-?\\d+).?',1))) %>%
+    unpack(location) %>%
+    mutate(across(starts_with('lat') | starts_with('lon'), as.integer),
+           latitude=latD + latM/60 + replace_na(latS,0)/3600,
+           longitude=-lonD - lonM/60 - replace_na(lonS,0)/3600) %>%
+    select(aerodrome,latitude,longitude,elevation)
+
+
+## An example of extracting the runways and their directions, lengths, and widths.
+##
+##   aerodrome  item  page  line direction1 side1 direction2 side2 length width
+##   <fct>     <int> <dbl> <int>      <dbl> <fct>      <dbl> <fct>  <int> <int>
+## 1 CNS4         17     4     1         70 NA           250 NA      2020   100
+## 2 CAP2         27     5     1        176 NA           356 NA      2257    75
+## 3 CNY4         60     8     1        180 NA           360 NA      2300    50
+## 4 CKB6         79    10     1        120 NA           300 NA      3609   100
+## 5 CYYW         91    11     1        123 NA           303 NA      4006   100
+
+runways = final %>%
+    arrange(item,page,line,chunk) %>%
+    group_by(item) %>%
+    summarize(text=str_flatten(text,' '),
+              page=first(page),
+              line=first(line)) %>%
+    left_join(select(labels,item,aerodrome,label1,label2)) %>%
+    filter(label1=='RWY DATA',is.na(label2)) %>%
+    mutate(runway = str_match_all(text,'Rwy (?<dir21>[0-9]{2})(?<side1>[LR])? ?(?:\\((?<dir31>[0-9]{3}).?\\))?/(?<dir22>[0-9]{2})(?<side2>[LR])? ?(?:\\((?<dir32>[0-9]{3}).?\\))? (?<length>[0-9,]+)[xX](?<width>[0-9,]+)')) %>%
+    mutate(runway = map(runway,as_tibble,.name_repair='unique_quiet')) %>%
+    unnest(runway) %>%
+    mutate(across(starts_with('dir') | length | width, \(s) as.integer(str_remove_all(s,','))),
+           side1=fct(side1),side2=fct(side2),
+           direction1=coalesce(dir31,dir21*10),
+           direction2=coalesce(dir32,dir22*10)) %>%
+    select(aerodrome,item,page,line,direction1,side1,direction2,side2,length,width)
+
+
+## An example of extracting the contact frequencies.
+##
+##   aerodrome  page  line type  frequency
+##   <fct>     <dbl> <int> <fct> <chr>
+## 1 CNS4          4     1 ATF   123.2
+## 2 CAP2          5     1 ATF   122.8
+## 3 CPJ2          6     1 ATF   123.2
+## 4 CNY4          8     1 ATF   123.2
+## 5 CKB6         10     1 ATF   123.2
+
+comms = final %>%
+    arrange(item,page,line,chunk) %>%
+    group_by(item) %>%
+    summarize(text=str_flatten(text,' '),
+              page=first(page),
+              line=first(line)) %>%
+    left_join(select(labels,item,aerodrome,label1,label2)) %>%
+    filter(label1=='COMM') %>%
+    mutate(frequency=str_extract(text,'[0-9]{3}\\.[0-9]{1,3}'),
+           contact=label2) %>%
+    select(aerodrome,item,page,line,contact,frequency)
