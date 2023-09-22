@@ -619,7 +619,7 @@ aerodromes = aerodromes %>%
 aerodromes = aerodromes %>%
     ungroup() %>%
     mutate(breakout = str_match(text, '(?<name>.*[^,]),? (?<province>[A-Z]{2})(?: \\((?<type>[^)]+)\\))?') %>%
-               as_tibble(.name_repair = 'unique')) %>%
+               as_tibble(.name_repair = 'unique_quiet')) %>%
     unpack(breakout) %>%
     mutate(aerodrome, name,
            province = fct(province),
@@ -784,7 +784,7 @@ locations = final %>%
     mutate(location = str_match(text,
                                 str_c('N(?<latD>\\d{2}) (?<latM>\\d{2})(?: (?<latS>\\d{2}))? ',
                                       'W(?<lonD>\\d{2,3}) (?<lonM>\\d{2})(?: (?<lonS>\\d{2}))?')) %>%
-               as_tibble(.name_repair = 'unique'),
+               as_tibble(.name_repair = 'unique_quiet'),
            elevation = as.integer(str_extract(text, 'Elev (-?\\d+).?', 1))) %>%
     unpack(location) %>%
     mutate(across(starts_with('lat') | starts_with('lon'),  as.integer),
@@ -815,8 +815,8 @@ runways = final %>%
                                   str_c('Rwy ',
                                         '(?<dir21>[0-9]{2})(?<side1>[LR])? ?(?:\\((?<dir31>[0-9]{3}).?\\))?/',
                                         '(?<dir22>[0-9]{2})(?<side2>[LR])? ?(?:\\((?<dir32>[0-9]{3}).?\\))? ',
-                                        '(?<length>[0-9,]+)[xX](?<width>[0-9,]+)'))) %>%
-    mutate(runway = map(runway, as_tibble, .name_repair = 'unique_quiet')) %>%
+                                        '(?<length>[0-9,]+)[xX](?<width>[0-9,]+)')) %>%
+               map(as_tibble,.name_repair = 'unique_quiet')) %>%
     unnest(runway) %>%
     mutate(across(starts_with('dir') | length | width,  \(s) as.integer(str_remove_all(s, ','))),
            side1 = fct(side1), side2 = fct(side2),
