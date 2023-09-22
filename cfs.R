@@ -9,8 +9,8 @@ contacts=c('TWR','MF','MF/ATF','ATF','UNICOM','APRT RDO')  # COMM contacts in or
 accs = c('CZEG','CZQM','CZQX','CZUL',   # Area control centers (not actual aerodromes)
          'CZVR','CZWG','CZYZ')
 
-split_y = 32.7+4                        # Split point between header and body
-split_x = mean(c(70.5,77.79))           # Split point between labels and text
+split_y = 37                            # Split point between header and body
+split_x = 74                            # Split point between labels and text
 
 picture_x0 = 24                         # Left-hand edge for full width pictures
 picture_x1 = 201                        # Left-hand edge for all upper-right pictures
