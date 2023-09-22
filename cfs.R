@@ -9,6 +9,9 @@ contacts=c('TWR','MF','MF/ATF','ATF','UNICOM','APRT RDO')  # COMM contacts in or
 accs = c('CZEG','CZQM','CZQX','CZUL',   # Area control centers (not actual aerodromes)
          'CZVR','CZWG','CZYZ')
 
+aerodrome_x0 = 27                       # Left-hand side of aerodrome header line
+aerodrome_x1 = 337                      # Right-hand side of aerodrome header line
+
 split_y = 37                            # Split point between header and body
 split_x = 74                            # Split point between labels and text
 
@@ -159,8 +162,8 @@ aerodromes = pages %>%
               x0=min(x0),x1=max(x1),
               y0=min(y0),y1=max(y1)) %>%
     pivot_wider(names_prefix='chunk',names_from=chunk,values_from=c(text,x0,x1,y0,y1)) %>%
-    filter(near(x0_chunk1,27.4,4),
-           near(x1_chunk2,336.9,4),
+    filter(near(x0_chunk1,aerodrome_x0,4),
+           near(x1_chunk2,aerodrome_x1,4),
            str_detect(text_chunk2,'^C[0-9A-Z]{3}$')) %>%
     mutate(page,name=text_chunk1,aerodrome=text_chunk2,y=max(y1_chunk1,y1_chunk2),
            .keep='none') %>%
@@ -193,7 +196,7 @@ pages = pages %>%
                         y0=min(y0),y1=max(y1)) %>%
               mutate(aerodrome = str_extract(text,'^[A-Z]{2} ?(C[0-9A-Z]{3})$',group=1)) %>%
               inner_join(select(aerodromes,aerodrome,y)) %>%
-              filter(near(x0,27.4,4),y1-y < 10) %>%
+              filter(near(x0,aerodrome_x0,4),y1-y < 10) %>%
               select(page,line,chunk))
 
 
@@ -265,8 +268,8 @@ labels = labels %>%
 ## 5 CPE2          0     5 HELI DATA     3     5  27.4  64.7 148.  156.
 
 labels = labels %>%
-    mutate(level=case_when(near(x0,27.4,4) ~ 1L,
-                           TRUE            ~ 2L))
+    mutate(level=case_when(near(x0,aerodrome_x0,4) ~ 1L,
+                           TRUE                    ~ 2L))
 
 
 ## Merge labels that end in '-' indicating they have been split across lines, and drop explicit label continuation
