@@ -191,10 +191,9 @@ pages = pages %>%
               summarize(text=str_flatten(text,' '),
                         x0=min(x0),x1=max(x1),
                         y0=min(y0),y1=max(y1)) %>%
-              filter(near(x0,27.4,4)) %>%
               mutate(aerodrome = str_extract(text,'^[A-Z]{2} ?(C[0-9A-Z]{3})$',group=1)) %>%
               inner_join(select(aerodromes,aerodrome,y)) %>%
-              filter(y1-y < 10) %>%
+              filter(near(x0,27.4,4),y1-y < 10) %>%
               select(page,line,chunk))
 
 
