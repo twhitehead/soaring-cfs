@@ -488,7 +488,7 @@ aerodromes = pages %>%
     mutate(page,
            y=max(y1_chunk1,y1_chunk2,y1_chunk3,y1_chunk4),
            header0=line-2,header1=line,
-           ,.keep='none')
+           .keep='none')
 
 headers = headers %>%
     anti_join(aerodromes)
