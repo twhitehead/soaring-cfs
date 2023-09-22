@@ -1,10 +1,11 @@
 library('tidyverse')
 
-options(width=256)
+options(width = 256)
 
-basename='ecfs_04_en'                   # Base name of text and input file
+basename = 'ecfs_04_en'                 # Base name of text and input file
 
-contacts=c('TWR','MF','MF/ATF','ATF','UNICOM','APRT RDO')  # COMM contacts in order of preference
+contacts = c('TWR','MF','MF/ATF','ATF', # COMM contacts in order of preference
+             'UNICOM','APRT RDO')
 
 accs = c('CZEG','CZQM','CZQX','CZUL',   # Area control centers (not actual aerodromes)
          'CZVR','CZWG','CZYZ')
@@ -37,11 +38,14 @@ codes_x2 = 213                          # ICAO code spit point in column 2 of cr
 ## 4     1  52.5  62.6 117   154.  37.5   10.1  CAUTION:
 ## 5     1  52.7  62.6 156.  170.  14.1    9.87 THE
 
-input = read_tsv(str_c(basename,'.txt'), quote='') %>%
-    mutate(x0=left,x1=left+width,y0=top,y1=top+height) %>%
-    filter(conf==100,
+input = read_tsv(str_c(basename,'.txt'), quote = '') %>%
+    mutate(x0 = left, x1 = left+width,
+           y0 = top,  y1 = top+height) %>%
+    filter(conf == 100,
            between(width*height/str_length(text), 3*3, 72*72/4)) %>%
-    select(page=page_num,y0,y1,x0,x1,width,height,text)
+    select(page = page_num,
+           y0, y1, x0, x1, width, height,
+           text)
 
 
 ## ----------------------------------------------------------------------------------------------------------------
@@ -76,16 +80,16 @@ input = input %>%
 ## 5     4     2     1 ONTARIO                                                                                        27.14  62.47 21.27 33.07
 
 headers = headers %>%
-    arrange(page,y1) %>%
+    arrange(page, y1) %>%
     group_by(page) %>%
-    mutate(line = cumsum(replace_na(y1-lag(y1) > 4,TRUE))) %>%
-    arrange(page,line,x0) %>%
-    group_by(page,line) %>%
-    mutate(chunk = cumsum(replace_na(x0-lag(x1) > 2*height,TRUE))) %>%
-    group_by(page,line,chunk) %>%
-    summarize(text=str_flatten(text,' '),
-              x0=min(x0),x1=max(x1),
-              y0=min(y0),y1=max(y1))
+    mutate(line = cumsum(replace_na(y1-lag(y1) > 4, TRUE))) %>%
+    arrange(page, line, x0) %>%
+    group_by(page, line) %>%
+    mutate(chunk = cumsum(replace_na(x0-lag(x1) > 2*height, TRUE))) %>%
+    group_by(page, line, chunk) %>%
+    summarize(text = str_flatten(text, ' '),
+              x0 = min(x0), x1 = max(x1),
+              y0 = min(y0), y1 = max(y1))
 
 
 ## Identify aerodrome pages by last line chunk being 'AERODROME / FACILITY DIRECTORY'.
@@ -100,7 +104,7 @@ headers = headers %>%
 
 pages = headers %>%
     group_by(page) %>%
-    filter(last(text)=='AERODROME / FACILITY DIRECTORY') %>%
+    filter(last(text) == 'AERODROME / FACILITY DIRECTORY') %>%
     summarize()
 
 headers = headers %>%
@@ -136,12 +140,12 @@ input = input %>%
 ## 5     3     3     2 N43 50 10 W79 01 02 Adj              77.79 161.7  59.68  67.48
 
 pages = pages %>%
-    arrange(page,y1) %>%
+    arrange(page, y1) %>%
     group_by(page) %>%
-    mutate(line = cumsum(replace_na(y1-lag(y1) > 4,TRUE))) %>%
-    arrange(page,line,x0) %>%
-    group_by(page,line) %>%
-    mutate(chunk = cumsum(replace_na(x0-lag(x1) > 2*height,TRUE)))
+    mutate(line = cumsum(replace_na(y1-lag(y1) > 4, TRUE))) %>%
+    arrange(page, line, x0) %>%
+    group_by(page, line) %>%
+    mutate(chunk = cumsum(replace_na(x0-lag(x1) > 2*height, TRUE)))
 
 
 ## Extract the aerodromes by being a left aligned name chunk and a right aligned ICAO code chunk that
@@ -156,22 +160,23 @@ pages = pages %>%
 ## 5     7 ALLISTON (STEVENSON MEM HOSP) ON (Heli) CPZ2      54.41
 
 aerodromes = pages %>%
-    arrange(page,line,chunk,x0) %>%
-    group_by(page,line,chunk) %>%
-    summarize(text=str_flatten(text,' '),
-              x0=min(x0),x1=max(x1),
-              y0=min(y0),y1=max(y1)) %>%
-    pivot_wider(names_prefix='chunk',names_from=chunk,values_from=c(text,x0,x1,y0,y1)) %>%
-    filter(near(x0_chunk1,aerodrome_x0,4),
-           near(x1_chunk2,aerodrome_x1,4),
-           str_detect(text_chunk2,'^C[0-9A-Z]{3}$')) %>%
-    mutate(page,name=text_chunk1,aerodrome=text_chunk2,y=max(y1_chunk1,y1_chunk2),
-           .keep='none') %>%
-    filter(!aerodrome%in%accs) %>%
+    arrange(page, line, chunk, x0) %>%
+    group_by(page, line, chunk) %>%
+    summarize(text = str_flatten(text, ' '),
+              x0 = min(x0), x1 = max(x1),
+              y0 = min(y0), y1 = max(y1)) %>%
+    pivot_wider(names_prefix = 'chunk', names_from = chunk,
+                values_from = c(text, x0, x1, y0, y1)) %>%
+    filter(near(x0_chunk1, aerodrome_x0, 4),
+           near(x1_chunk2, aerodrome_x1, 4),
+           str_detect(text_chunk2, '^C[0-9A-Z]{3}$')) %>%
+    mutate(page,name = text_chunk1, aerodrome = text_chunk2,
+           y = max(y1_chunk1, y1_chunk2), .keep = 'none') %>%
+    filter(!aerodrome %in% accs) %>%
     ungroup() %>%
-    mutate(aerodrome=fct(aerodrome)) %>%
+    mutate(aerodrome = fct(aerodrome)) %>%
     group_by(aerodrome) %>%
-    mutate(name=first(name))
+    mutate(name = first(name))
 
 
 ## Remove the aerodrome headers lines and the invisible province aerodrome lines above them.
@@ -189,15 +194,15 @@ pages = pages %>%
 
 pages = pages %>%
     anti_join(pages %>%
-              arrange(page,line,chunk,x0) %>%
-              group_by(page,line,chunk) %>%
-              summarize(text=str_flatten(text,' '),
-                        x0=min(x0),x1=max(x1),
-                        y0=min(y0),y1=max(y1)) %>%
-              mutate(aerodrome = str_extract(text,'^[A-Z]{2} ?(C[0-9A-Z]{3})$',group=1)) %>%
-              inner_join(select(aerodromes,aerodrome,y)) %>%
-              filter(near(x0,aerodrome_x0,4),y1-y < 10) %>%
-              select(page,line,chunk))
+              arrange(page, line, chunk, x0) %>%
+              group_by(page, line, chunk) %>%
+              summarize(text = str_flatten(text, ' '),
+                        x0 = min(x0), x1 = max(x1),
+                        y0 = min(y0), y1 = max(y1)) %>%
+              mutate(aerodrome = str_extract(text, '^[A-Z]{2} ?(C[0-9A-Z]{3})$', group = 1)) %>%
+              inner_join(select(aerodromes, aerodrome, y)) %>%
+              filter(near(x0, aerodrome_x0, 4), y1-y < 10) %>%
+              select(page, line, chunk))
 
 
 ## Classify items by the aerodrome ICAO code on the page it occurs under.
@@ -211,8 +216,8 @@ pages = pages %>%
 ## 5     3  59.7  67.5 112.  126.  14.4     7.8 W79        3     2 CPE2
 
 items = pages %>%
-    inner_join(select(aerodromes,page,aerodrome,y),
-               by=join_by(page,closest(y0>y))) %>%
+    inner_join(select(aerodromes, page, aerodrome,y),
+               by = join_by(page, closest(y0 > y))) %>%
     select(!y)
 
 pages = pages %>%
@@ -247,14 +252,14 @@ items = items %>%
 ## 5 CPE2          3     5 HELI DATA  27.4  64.7 148.  156.
 
 labels = labels %>%
-    arrange(page,y1) %>%
-    group_by(aerodrome,page) %>%
-    mutate(line = cumsum(replace_na(y1-lag(y1) > 4,TRUE))) %>%
-    arrange(page,line,x0) %>%
-    group_by(aerodrome,page,line) %>%
-    summarize(text=str_flatten(text,' '),
-              x0=min(x0),x1=max(x1),
-              y0=min(y0),y1=max(y1))
+    arrange(page, y1) %>%
+    group_by(aerodrome, page) %>%
+    mutate(line = cumsum(replace_na(y1-lag(y1) > 4, TRUE))) %>%
+    arrange(page, line, x0) %>%
+    group_by(aerodrome, page, line) %>%
+    summarize(text = str_flatten(text, ' '),
+              x0 = min(x0), x1 = max(x1),
+              y0 = min(y0), y1 = max(y1))
 
 
 ## Extract label depths according to left marign alignment (1 = left aligned and 2 = not left aligned).
@@ -268,8 +273,8 @@ labels = labels %>%
 ## 5 CPE2          0     5 HELI DATA     3     5  27.4  64.7 148.  156.
 
 labels = labels %>%
-    mutate(level=case_when(near(x0,aerodrome_x0,4) ~ 1L,
-                           TRUE                    ~ 2L))
+    mutate(level = case_when(near(x0, aerodrome_x0, 4) ~ 1L,
+                             TRUE                      ~ 2L))
 
 
 ## Merge labels that end in '-' indicating they have been split across lines, and drop explicit label continuation
@@ -284,17 +289,17 @@ labels = labels %>%
 ## 5 CPE2          1     5 LIGHTING      3     6  27.4  60.8 178.  186.
 
 labels = labels %>%
-    arrange(page,line) %>%
-    group_by(aerodrome,level) %>%
-    mutate(item=cumsum(!str_detect(lag(text,default=''),'-$')),
-           text=str_remove(text,'-$')) %>%
-    group_by(aerodrome,level,item) %>%
-    summarize(text=str_flatten(text),
-              page=first(page),
-              line=first(line),
-              x0=min(x0),x1=max(x1),
-              y0=min(y0),y1=max(y1)) %>%
-    filter(!str_detect(text,'\\(Cont’d\\)$'))
+    arrange(page, line) %>%
+    group_by(aerodrome, level) %>%
+    mutate(item = cumsum(!str_detect(lag(text, default = ''), '-$')),
+           text = str_remove(text, '-$')) %>%
+    group_by(aerodrome, level, item) %>%
+    summarize(text = str_flatten(text),
+              page = first(page),
+              line = first(line),
+              x0 = min(x0), x1 = max(x1),
+              y0 = min(y0), y1 = max(y1)) %>%
+    filter(!str_detect(text, '\\(Cont’d\\)$'))
 
 
 ## Pivot the labels into their own columns and compute y break point for association.
@@ -308,16 +313,17 @@ labels = labels %>%
 ## 5 CPE2          5     3 HELI DATA NA     144.
 
 labels = labels %>%
-    pivot_wider(names_from=level,names_prefix='label',values_from=text) %>%
-    arrange(page,line) %>%
+    pivot_wider(names_from = level, names_prefix = 'label',
+                values_from = text) %>%
+    arrange(page, line) %>%
     group_by(aerodrome) %>%
     fill(label1) %>%
     ungroup() %>%
-    mutate(aerodrome,page,
-           across(starts_with('label'),fct),
+    mutate(aerodrome, page,
+           across(starts_with('label'), fct),
            item = row_number(),
            y = y0-4,
-           .keep='none')
+           .keep = 'none')
 
 
 ## Add labels to item data by closest y accounting for pages.
@@ -331,8 +337,8 @@ labels = labels %>%
 ## 5     3  59.7  67.5 128.  136.   7.77    7.8 01           3     2     1
 
 items = items %>%
-    bind_rows(select(labels,aerodrome,page,item,y)) %>%
-    arrange(page,coalesce(y0,y)) %>%
+    bind_rows(select(labels, aerodrome, page, item, y)) %>%
+    arrange(page, coalesce(y0, y)) %>%
     group_by(aerodrome) %>%
     fill(item) %>%
     filter(is.na(y)) %>%
@@ -352,18 +358,20 @@ items = items %>%
 ## 5     2     3     2     1 905-683-2320 Cert PPR                 43.5  62.5  77.8  160.  96.9 105.
 
 items = items %>%
-    arrange(item,page,y1) %>%
-    group_by(item,page) %>%
-    mutate(line = cumsum(replace_na(y1-lag(y1) > 4,TRUE))) %>%
-    arrange(item,page,line,x0) %>%
-    group_by(item,page,line) %>%
-    mutate(chunk = cumsum(replace_na(x0-lag(x1) > 2*height,TRUE))) %>%
-    group_by(item,page,line,chunk) %>%
-    summarize(text=str_flatten(text,' '),
-              wrap1=first(x1-x0),
-              wrap2=first(lead(x1)-x0),
-              x0=min(x0),x1=max(x1),
-              y0=min(y0),y1=max(y1))
+    arrange(item, page, y1) %>%
+    group_by(item, page) %>%
+    mutate(line = cumsum(replace_na(y1-lag(y1) > 4,
+                                    TRUE))) %>%
+    arrange(item, page, line, x0) %>%
+    group_by(item, page, line) %>%
+    mutate(chunk = cumsum(replace_na(x0-lag(x1) > 2*height,
+                                     TRUE))) %>%
+    group_by(item, page, line, chunk) %>%
+    summarize(text = str_flatten(text, ' '),
+              wrap1 = first(x1-x0),
+              wrap2 = first(lead(x1)-x0),
+              x0 = min(x0), x1 = max(x1),
+              y0 = min(y0), y1 = max(y1))
 
 
 ## Extract picture box based on distance from aerodrome header to first text.
@@ -378,16 +386,16 @@ items = items %>%
 
 images = items %>%
     left_join(labels) %>%
-    rename(iy1=y) %>%
-    right_join(select(aerodromes,page,aerodrome,iy0=y)) %>%
-    arrange(item,page,line,chunk) %>%
+    rename(iy1 = y) %>%
+    right_join(select(aerodromes, page, aerodrome, iy0 = y)) %>%
+    arrange(item, page, line, chunk) %>%
     group_by(aerodrome) %>%
-    summarize(page=first(page),
-              iy0=first(iy0)+1,iy1=first(iy1)) %>%
-    mutate(x0=if_else(iy1-iy0 < 36,picture_x1,picture_x0),
-           x1=picture_x2,
-           y0=iy0,
-           y1=if_else(iy1-iy0 < 36,y0+picture_y1-picture_y0,iy1))
+    summarize(page = first(page),
+              iy0 = first(iy0)+1, iy1 = first(iy1)) %>%
+    mutate(x0 = if_else(iy1-iy0 < 36, picture_x1, picture_x0),
+           x1 = picture_x2,
+           y0 = iy0,
+           y1 = if_else(iy1-iy0 < 36, y0+picture_y1-picture_y0, iy1))
 
 
 ## Compute the right hand margin as picture_x1 until surpased and then picture_x2.
@@ -401,10 +409,10 @@ images = items %>%
 ## 5     5     3     1     1 FATO/TLOF 86’ x 86’ ASPH/GRASS         38.5  49.7  77.8  192. 148.  156.     201
 
 items = items %>%
-    left_join(select(labels,aerodrome,item)) %>%
-    arrange(item,page,line,chunk) %>%
+    left_join(select(labels, aerodrome, item)) %>%
+    arrange(item, page, line, chunk) %>%
     group_by(aerodrome) %>%
-    mutate(margin=cummax(if_else(x1 < picture_x1,picture_x1,picture_x2))) %>%
+    mutate(margin = cummax(if_else(x1 < picture_x1, picture_x1, picture_x2))) %>%
     ungroup() %>%
     select(!aerodrome)
 
@@ -424,7 +432,7 @@ items = items %>%
 
 pages = headers %>%
     group_by(page) %>%
-    filter(str_detect(last(text),'A[0-9]+ GENERAL|GENERAL A[0-9]+')) %>%
+    filter(str_detect(last(text), 'A[0-9]+ GENERAL|GENERAL A[0-9]+')) %>%
     summarize()
 
 
@@ -455,12 +463,12 @@ pages = input %>%
 ## 5   495  57.2  65.0  60.4  70.1  9.72   7.8  will        2     1
 
 pages = pages %>%
-    arrange(page,y1) %>%
+    arrange(page, y1) %>%
     group_by(page) %>%
-    mutate(line = cumsum(replace_na(y1-lag(y1) > 4,TRUE))) %>%
-    arrange(page,line,x0) %>%
-    group_by(page,line) %>%
-    mutate(chunk = cumsum(replace_na(x0-lag(x1) > 2*height,TRUE)))
+    mutate(line = cumsum(replace_na(y1-lag(y1) > 4, TRUE))) %>%
+    arrange(page, line, x0) %>%
+    group_by(page, line) %>%
+    mutate(chunk = cumsum(replace_na(x0-lag(x1) > 2*height, TRUE)))
 
 
 ## Extract the aerodrome tables by their labels.
@@ -474,21 +482,24 @@ pages = pages %>%
 ## 5   516  64.9     1     3
 
 aerodromes = pages %>%
-    arrange(page,line,chunk,x0) %>%
-    group_by(page,line,chunk) %>%
-    summarize(text=str_flatten(text,' '),
-              x0=min(x0),x1=max(x1),
-              y0=min(y0),y1=max(y1)) %>%
-    pivot_wider(names_prefix='chunk',names_from=chunk,values_from=c(text,x0,x1,y0,y1)) %>%
-    arrange(page,line) %>%
+    arrange(page, line, chunk, x0) %>%
+    group_by(page, line, chunk) %>%
+    summarize(text = str_flatten(text, ' '),
+              x0 = min(x0), x1 = max(x1),
+              y0 = min(y0), y1 = max(y1)) %>%
+    pivot_wider(names_prefix = 'chunk', names_from = chunk, values_from = c(text, x0, x1, y0, y1)) %>%
+    arrange(page, line) %>%
     group_by(page) %>%
-    filter(str_detect(lag(text_chunk1,2L),'^CROSS REFERENCE OF AERODROME$'             ),str_detect(lag(text_chunk2,2L),'^CROSS REFERENCE OF AERODROME$'             ),
-           str_detect(lag(text_chunk1,1L),'^LOCATION INDICATOR & NAME( \\(Cont.d\\))?$'),str_detect(lag(text_chunk2,1L),'^LOCATION INDICATOR & NAME( \\(Cont.d\\))?$'),
-           text_chunk1=='Indicator',text_chunk2=='Name',text_chunk3=='Indicator',text_chunk4=='Name') %>%
+    filter(str_detect(lag(text_chunk1, 2L), '^CROSS REFERENCE OF AERODROME$'             ),
+           str_detect(lag(text_chunk2, 2L), '^CROSS REFERENCE OF AERODROME$'             ),
+           str_detect(lag(text_chunk1, 1L), '^LOCATION INDICATOR & NAME( \\(Cont.d\\))?$'),
+           str_detect(lag(text_chunk2, 1L), '^LOCATION INDICATOR & NAME( \\(Cont.d\\))?$'),
+           text_chunk1 == 'Indicator', text_chunk2 == 'Name',
+           text_chunk3 == 'Indicator', text_chunk4 == 'Name') %>%
     mutate(page,
-           y=max(y1_chunk1,y1_chunk2,y1_chunk3,y1_chunk4),
-           header0=line-2,header1=line,
-           .keep='none')
+           y = max(y1_chunk1, y1_chunk2, y1_chunk3, y1_chunk4),
+           header0 = line-2, header1 = line,
+           .keep = 'none')
 
 headers = headers %>%
     anti_join(aerodromes)
@@ -499,7 +510,7 @@ input = input %>%
 pages = pages %>%
     semi_join(aerodromes) %>%
     anti_join(aerodromes,
-              join_by(page,between(line,header0,header1)))
+              join_by(page, between(line, header0, header1)))
 
 
 ## Extract the table columns by being under the labels.
@@ -513,10 +524,10 @@ pages = pages %>%
 ## 5   512  91.2  99.0 219.  245.  26.4     7.8 Ingenika             6     2      2
 
 aerodromes = pages %>%
-    inner_join(select(aerodromes,page,y),
-               by=join_by(page,closest(y0>y))) %>%
+    inner_join(select(aerodromes, page, y),
+               by = join_by(page, closest(y0 > y))) %>%
     select(!y) %>%
-    mutate(column=if_else(x1 < codes_x1,1,2))
+    mutate(column = if_else(x1 < codes_x1, 1, 2))
 
 pages = pages %>%
     anti_join(aerodromes)
@@ -556,7 +567,7 @@ codes = codes %>%
     mutate(page, column,
            aerodrome = fct(text),
            y = y0-4,
-           .keep='none')
+           .keep = 'none')
 
 ## Add ICAO code to data by closest y accounting for pages and columns.
 ##
@@ -570,7 +581,7 @@ codes = codes %>%
 
 aerodromes = aerodromes %>%
     left_join(codes,
-              by=join_by(page,column,closest(y0>y))) %>%
+              by = join_by(page, column, closest(y0 > y))) %>%
     select(!y)
 
 
@@ -585,14 +596,14 @@ aerodromes = aerodromes %>%
 ## 5 CAQ4      Springhouse Airpark BC                 219.  294.  111.  119.
 
 aerodromes = aerodromes %>%
-    arrange(aerodrome,page,column,y1) %>%
-    group_by(aerodrome,page,column) %>%
-    mutate(line = cumsum(replace_na(y1-lag(y1) > 4,TRUE))) %>%
-    arrange(aerodrome,page,column,line,x0) %>%
+    arrange(aerodrome, page, column, y1) %>%
+    group_by(aerodrome, page, column) %>%
+    mutate(line = cumsum(replace_na(y1-lag(y1) > 4, TRUE))) %>%
+    arrange(aerodrome, page, column, line, x0) %>%
     group_by(aerodrome) %>%
-    summarize(text=str_flatten(text,' '),
-              x0=min(x0),x1=max(x1),
-              y0=min(y0),y1=max(y1))
+    summarize(text = str_flatten(text, ' '),
+              x0 = min(x0), x1 = max(x1),
+              y0 = min(y0), y1 = max(y1))
 
 
 ## Breakout province and type fields embedded in the names.
@@ -607,13 +618,13 @@ aerodromes = aerodromes %>%
 
 aerodromes = aerodromes %>%
     ungroup() %>%
-    mutate(breakout = str_match(text,'(?<name>.*[^,]),? (?<province>[A-Z]{2})(?: \\((?<type>[^)]+)\\))?') %>%
-               as_tibble(.name_repair='unique')) %>%
+    mutate(breakout = str_match(text, '(?<name>.*[^,]),? (?<province>[A-Z]{2})(?: \\((?<type>[^)]+)\\))?') %>%
+               as_tibble(.name_repair = 'unique')) %>%
     unpack(breakout) %>%
-    mutate(aerodrome,name,
-           province=fct(province),
-           type=fct_recode(fct(replace_na(type,'Land')),Water='water aerodrome'),
-           .keep='none')
+    mutate(aerodrome, name,
+           province = fct(province),
+           type = fct_recode(fct(replace_na(type, 'Land')), Water = 'water aerodrome'),
+           .keep = 'none')
 
 
 ## ----------------------------------------------------------------------------------------------------------------
@@ -630,19 +641,19 @@ aerodromes = aerodromes %>%
 ## 5     5     3     1     1 FATO/TLOF 86’ x 86’ ASPH/GRASS         38.5  49.7  77.8  192. 148.  156.     201 HELI DATA NA     NA    FATO/TLOF    NA             1
 
 prob = items %>%
-    arrange(item,page,line,chunk) %>%
-    group_by(item,chunk) %>%
-    mutate(words = str_split(text,' +'),
-           word0 = lag(map_chr(words,tail,1)),
-           word1 = map_chr(words,head,1),
+    arrange(item, page, line, chunk) %>%
+    group_by(item, chunk) %>%
+    mutate(words = str_split(text, ' +'),
+           word0 = lag(map_chr(words, tail, 1)),
+           word1 = map_chr(words, head, 1),
            words = NULL,
-           prob_=log(case_when(is.na(lag(margin-x1))     ~ NA,
-                               lag(margin-x1) <= wrap1+8 ~ 1/2,     # ~ 1:2 split given one+ word would wrap
-                               lag(margin-x1) <= wrap2+8 ~ 2/1,     # ~ 2:1 split given two+ words would wrap
-                               TRUE                      ~ 10/1)),  # ~ 10:1 split given three+ words would wrap
-           change=prob_>0,
-           split=prob_>0,
-           paragraph=cumsum(replace_na(split,TRUE)))
+           prob_ = log(case_when(is.na(lag(margin-x1))     ~ NA,
+                                lag(margin-x1) <= wrap1+8 ~ 1/2,     # ~ 1:2 split given one+ word would wrap
+                                lag(margin-x1) <= wrap2+8 ~ 2/1,     # ~ 2:1 split given two+ words would wrap
+                                TRUE                      ~ 10/1)),  # ~ 10:1 split given three+ words would wrap
+           change = prob_>0,
+           split = prob_>0,
+           paragraph = cumsum(replace_na(split, TRUE)))
 
 
 ## Iterate on combining lines into paragraphs based on whether the margin would have forced a break and the
@@ -652,11 +663,11 @@ prob = items %>%
 tries = 0
 changes = ( prob %>%
             ungroup() %>%
-            summarize(n=sum(replace_na(change,0))) )$n
+            summarize(n = sum(replace_na(change, 0))) )$n
 
 while (changes > 0 & tries < 10) {
 
-    print(str_c('There were ',changes,' changes'))
+    print(str_c('There were ', changes, ' changes'))
 
     ## Extract all words with a paragraph grouping variable.
     ##
@@ -669,13 +680,13 @@ while (changes > 0 & tries < 10) {
     ## 5 HELI DATA NA     <chr [16]>
 
     words = prob %>%
-        arrange(item,page,line,chunk) %>%
-        group_by(item,chunk,paragraph) %>%
-        summarize(text=str_flatten(text,' ')) %>%
-        left_join(select(labels,item,label1,label2)) %>%
-        group_by(label1,label2) %>%
-        mutate(words=str_split(text,' +')) %>%
-        select(label1,label2,words)
+        arrange(item, page, line, chunk) %>%
+        group_by(item, chunk, paragraph) %>%
+        summarize(text = str_flatten(text, ' ')) %>%
+        left_join(select(labels, item, label1, label2)) %>%
+        group_by(label1, label2) %>%
+        mutate(words = str_split(text, ' +')) %>%
+        select(label1, label2, words)
 
 
 
@@ -691,21 +702,21 @@ while (changes > 0 & tries < 10) {
     ## 5 REF    NA     1039'      1      0      0
 
     monograms = words %>%
-        mutate(word=map_chr(words,tail,1)) %>%
-        group_by(label1,label2,word) %>%
-        summarize(count0=n()) %>%
+        mutate(word = map_chr(words, tail, 1)) %>%
+        group_by(label1, label2, word) %>%
+        summarize(count0 = n()) %>%
         full_join(words %>%
-                  mutate(word=map_chr(words,head,1)) %>%
-                  group_by(label1,label2,word) %>%
-                  summarize(count1=n())) %>%
+                  mutate(word = map_chr(words, head, 1)) %>%
+                  group_by(label1, label2, word) %>%
+                  summarize(count1 = n())) %>%
         full_join(words %>%
-                  mutate(word=words,words=NULL) %>%
+                  mutate(word = words, words = NULL) %>%
                   unnest(word) %>%
-                  group_by(label1,label2,word) %>%
-                  summarize(count_=n())) %>%
-        mutate(count0=replace_na(count0,0),
-               count1=replace_na(count1,0),
-               count_=replace_na(count_,0))
+                  group_by(label1, label2, word) %>%
+                  summarize(count_ = n())) %>%
+        mutate(count0 = replace_na(count0, 0),
+               count1 = replace_na(count1, 0),
+               count_ = replace_na(count_, 0))
 
 
     ## Add in the counts for the word locations.
@@ -720,21 +731,21 @@ while (changes > 0 & tries < 10) {
 
     prob = prob %>%
         select(!starts_with('count')) %>%
-        left_join(select(labels,item,label1,label2)) %>%
-        left_join(select(monograms,label1,label2,word0=word,count0,count0_=count_)) %>%
-        left_join(select(monograms,label1,label2,word1=word,count1,count1_=count_)) %>%
-        mutate(count0=count0-split,count0_=count0_-1-count0,
-               count1=count1-split,count1_=count1_-1-count1,
-               prob0=log(count0+1)-log(count0_+1),
-               prob1=log(count1+1)-log(count1_+1),
-               prob=prob_+prob0+prob1,
-               change=split!=(prob>0),
-               split=prob>0,
-               paragraph=cumsum(replace_na(split,TRUE)))
+        left_join(select(labels, item, label1, label2)) %>%
+        left_join(select(monograms, label1, label2, word0 = word, count0, count0_ = count_)) %>%
+        left_join(select(monograms, label1, label2, word1 = word, count1, count1_ = count_)) %>%
+        mutate(count0 = count0-split, count0_ = count0_-1-count0,
+               count1 = count1-split, count1_ = count1_-1-count1,
+               prob0 = log(count0+1) - log(count0_+1),
+               prob1 = log(count1+1) - log(count1_+1),
+               prob = prob_ + prob0 + prob1,
+               change = split != (prob > 0),
+               split = prob > 0,
+               paragraph = cumsum(replace_na(split, TRUE)))
 
     changes = ( prob %>%
                 ungroup() %>%
-                summarize(n=sum(replace_na(change,0))) )$n
+                summarize(n = sum(replace_na(change, 0))) )$n
     tries = tries+1
 }
 
@@ -742,11 +753,11 @@ while (changes > 0 & tries < 10) {
 ##
 
 final = prob %>%
-    arrange(item,page,line,chunk) %>%
-    group_by(item,chunk,paragraph) %>%
-    summarize(text=str_flatten(text,' '),
-              page=first(page),
-              line=first(line))
+    arrange(item, page, line, chunk) %>%
+    group_by(item, chunk, paragraph) %>%
+    summarize(text = str_flatten(text, ' '),
+              page = first(page),
+              line = first(line))
 
 
 ## ----------------------------------------------------------------------------------------------------------------
@@ -763,21 +774,23 @@ final = prob %>%
 ## 5 CPZ2          44.2      79.9
 
 locations = final %>%
-    arrange(item,page,line,chunk) %>%
+    arrange(item, page, line, chunk) %>%
     group_by(item) %>%
-    summarize(text=str_flatten(text,' '),
-              page=first(page),
-              line=first(line)) %>%
-    left_join(select(labels,item,aerodrome,label1,label2)) %>%
-    filter(label1=='REF',is.na(label2)) %>%
-    mutate(location = str_match(text,'N(?<latD>\\d{2}) (?<latM>\\d{2})(?: (?<latS>\\d{2}))? W(?<lonD>\\d{2,3}) (?<lonM>\\d{2})(?: (?<lonS>\\d{2}))?') %>%
-               as_tibble(.name_repair='unique'),
-           elevation = as.integer(str_extract(text,'Elev (-?\\d+).?',1))) %>%
+    summarize(text = str_flatten(text, ' '),
+              page = first(page),
+              line = first(line)) %>%
+    left_join(select(labels, item, aerodrome, label1, label2)) %>%
+    filter(label1 == 'REF', is.na(label2)) %>%
+    mutate(location = str_match(text,
+                                str_c('N(?<latD>\\d{2}) (?<latM>\\d{2})(?: (?<latS>\\d{2}))? ',
+                                      'W(?<lonD>\\d{2,3}) (?<lonM>\\d{2})(?: (?<lonS>\\d{2}))?')) %>%
+               as_tibble(.name_repair = 'unique'),
+           elevation = as.integer(str_extract(text, 'Elev (-?\\d+).?', 1))) %>%
     unpack(location) %>%
-    mutate(across(starts_with('lat') | starts_with('lon'), as.integer),
-           latitude=latD + latM/60 + replace_na(latS,0)/3600,
-           longitude=-lonD - lonM/60 - replace_na(lonS,0)/3600) %>%
-    select(aerodrome,latitude,longitude,elevation)
+    mutate(across(starts_with('lat') | starts_with('lon'),  as.integer),
+           latitude  =  latD + latM/60 + replace_na(latS, 0)/3600,
+           longitude = -lonD - lonM/60 - replace_na(lonS, 0)/3600) %>%
+    select(aerodrome, latitude, longitude, elevation)
 
 
 ## An example of extracting the runways and their directions, lengths, and widths.
@@ -791,21 +804,25 @@ locations = final %>%
 ## 5 CYYW         91    11     1        123 NA           303 NA      4006   100
 
 runways = final %>%
-    arrange(item,page,line,chunk) %>%
+    arrange(item, page, line, chunk) %>%
     group_by(item) %>%
-    summarize(text=str_flatten(text,' '),
-              page=first(page),
-              line=first(line)) %>%
-    left_join(select(labels,item,aerodrome,label1,label2)) %>%
-    filter(label1=='RWY DATA',is.na(label2)) %>%
-    mutate(runway = str_match_all(text,'Rwy (?<dir21>[0-9]{2})(?<side1>[LR])? ?(?:\\((?<dir31>[0-9]{3}).?\\))?/(?<dir22>[0-9]{2})(?<side2>[LR])? ?(?:\\((?<dir32>[0-9]{3}).?\\))? (?<length>[0-9,]+)[xX](?<width>[0-9,]+)')) %>%
-    mutate(runway = map(runway,as_tibble,.name_repair='unique_quiet')) %>%
+    summarize(text = str_flatten(text, ' '),
+              page = first(page),
+              line = first(line)) %>%
+    left_join(select(labels, item, aerodrome, label1, label2)) %>%
+    filter(label1 == 'RWY DATA', is.na(label2)) %>%
+    mutate(runway = str_match_all(text,
+                                  str_c('Rwy ',
+                                        '(?<dir21>[0-9]{2})(?<side1>[LR])? ?(?:\\((?<dir31>[0-9]{3}).?\\))?/',
+                                        '(?<dir22>[0-9]{2})(?<side2>[LR])? ?(?:\\((?<dir32>[0-9]{3}).?\\))? ',
+                                        '(?<length>[0-9,]+)[xX](?<width>[0-9,]+)'))) %>%
+    mutate(runway = map(runway, as_tibble, .name_repair = 'unique_quiet')) %>%
     unnest(runway) %>%
-    mutate(across(starts_with('dir') | length | width, \(s) as.integer(str_remove_all(s,','))),
-           side1=fct(side1),side2=fct(side2),
-           direction1=coalesce(dir31,dir21*10),
-           direction2=coalesce(dir32,dir22*10)) %>%
-    select(aerodrome,item,page,line,direction1,side1,direction2,side2,length,width)
+    mutate(across(starts_with('dir') | length | width,  \(s) as.integer(str_remove_all(s, ','))),
+           side1 = fct(side1), side2 = fct(side2),
+           direction1 = coalesce(dir31, dir21*10),
+           direction2 = coalesce(dir32, dir22*10)) %>%
+    select(aerodrome, item, page, line, direction1, side1, direction2, side2, length, width)
 
 
 ## An example of extracting the contact frequencies.
@@ -819,16 +836,16 @@ runways = final %>%
 ## 5 CKB6         10     1 ATF   123.2
 
 comms = final %>%
-    arrange(item,page,line,chunk) %>%
+    arrange(item, page, line, chunk) %>%
     group_by(item) %>%
-    summarize(text=str_flatten(text,' '),
-              page=first(page),
-              line=first(line)) %>%
-    left_join(select(labels,item,aerodrome,label1,label2)) %>%
-    filter(label1=='COMM') %>%
-    mutate(frequency=str_extract(text,'[0-9]{3}\\.[0-9]{1,3}'),
-           contact=label2) %>%
-    select(aerodrome,item,page,line,contact,frequency)
+    summarize(text = str_flatten(text, ' '),
+              page = first(page),
+              line = first(line)) %>%
+    left_join(select(labels, item, aerodrome, label1, label2)) %>%
+    filter(label1 == 'COMM') %>%
+    mutate(frequency = str_extract(text, '[0-9]{3}\\.[0-9]{1,3}'),
+           contact = label2) %>%
+    select(aerodrome, item, page, line, contact, frequency)
 
 
 ## An example of extracting the images (requires imagemagik).
@@ -842,10 +859,10 @@ comms = final %>%
 ## 5 CPZ2          7 magick -density 288 -extract 552x532+804+222 ecfs_04_en.pdf'[6]' CPZ2.jpg magick -density 288 -extract 552x532+804+222 ecfs_04_en.pdf'[6]' CPZ2.jpg
 
 imagemagik = images %>%
-    mutate(aerodrome,page,
-           command=sprintf('magick -density 288 -extract %.0fx%.0f+%.0f+%.0f %s.pdf\'[%.0f]\' %s.jpg',
-                           (x1-x0)*4,(y1-y0)*4,x0*4,y0*4,basename,page-1,aerodrome),
-           result=map_int(command,system),
-           .keep='none')
+    mutate(aerodrome, page,
+           command = sprintf('magick -density 288 -extract %.0fx%.0f+%.0f+%.0f %s.pdf\'[%.0f]\' %s.jpg',
+                           (x1-x0)*4, (y1-y0)*4, x0*4, y0*4, basename, page-1, aerodrome),
+           result = map_int(command, system),
+           .keep = 'none')
 
 
