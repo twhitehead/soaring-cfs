@@ -270,8 +270,8 @@ labels = labels %>%
                            TRUE            ~ 2L))
 
 
-## Drop explicit label continuation across pages as we handle them implicitly (almost all are implicit). Merge
-## labels that end in '-' indicating they have been split across lines.
+## Merge labels that end in '-' indicating they have been split across lines, and drop explicit label continuation
+## across pages as we handle them implicitly (almost all are implicit).
 ##
 ##   aerodrome level  item text       page  line    x0    x1    y0    y1
 ##   <fct>     <int> <int> <chr>     <dbl> <int> <dbl> <dbl> <dbl> <dbl>
@@ -282,7 +282,6 @@ labels = labels %>%
 ## 5 CPE2          1     5 LIGHTING      3     6  27.4  60.8 178.  186.
 
 labels = labels %>%
-    filter(!str_detect(text,'\\(Cont’d\\)$')) %>%
     arrange(page,line) %>%
     group_by(aerodrome,level) %>%
     mutate(item=cumsum(!str_detect(lag(text,default=''),'-$')),
@@ -292,7 +291,8 @@ labels = labels %>%
               page=first(page),
               line=first(line),
               x0=min(x0),x1=max(x1),
-              y0=min(y0),y1=max(y1))
+              y0=min(y0),y1=max(y1)) %>%
+    filter(!str_detect(text,'\\(Cont’d\\)$'))
 
 
 ## Pivot the labels into their own columns and compute y break point for association.
