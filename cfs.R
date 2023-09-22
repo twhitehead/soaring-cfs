@@ -376,11 +376,10 @@ items = items %>%
 ## 4 CPJ2          6  54.4  55.7   201   338  54.4  185.
 ## 5 CPZ2          7  54.4  55.7   201   338  54.4  185.
 
-images = aerodromes %>%
-    select(page,aerodrome,iy0=y) %>%
-    left_join(items %>%
-              left_join(labels) %>%
-              rename(iy1=y)) %>%
+images = items %>%
+    left_join(labels) %>%
+    rename(iy1=y) %>%
+    right_join(select(aerodromes,page,aerodrome,iy0=y)) %>%
     arrange(item,page,line,chunk) %>%
     group_by(aerodrome) %>%
     summarize(page=first(page),
