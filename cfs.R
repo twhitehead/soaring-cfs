@@ -701,18 +701,18 @@ while (changes > 0 & tries < 10) {
     ## 5 REF    NA     1039'      1      0      0
 
     monograms = words %>%
-        mutate(word = map_chr(words, tail, 1)) %>%
+        mutate(word = words) %>%
+        unnest(word) %>%
         group_by(label1, label2, word) %>%
-        summarize(count0 = n()) %>%
+        summarize(count_ = n()) %>%
+        full_join(words %>%
+                  mutate(word = map_chr(words, tail, 1)) %>%
+                  group_by(label1, label2, word) %>%
+                  summarize(count0 = n())) %>%
         full_join(words %>%
                   mutate(word = map_chr(words, head, 1)) %>%
                   group_by(label1, label2, word) %>%
                   summarize(count1 = n())) %>%
-        full_join(words %>%
-                  mutate(word = words, words = NULL) %>%
-                  unnest(word) %>%
-                  group_by(label1, label2, word) %>%
-                  summarize(count_ = n())) %>%
         mutate(across(starts_with('count'), ~ replace_na(.x,0)))
 
 
