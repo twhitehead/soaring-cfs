@@ -713,9 +713,7 @@ while (changes > 0 & tries < 10) {
                   unnest(word) %>%
                   group_by(label1, label2, word) %>%
                   summarize(count_ = n())) %>%
-        mutate(count0 = replace_na(count0, 0),
-               count1 = replace_na(count1, 0),
-               count_ = replace_na(count_, 0))
+        mutate(across(starts_with('count'), ~ replace_na(.x,0)))
 
 
     ## Add in the counts for the word locations.
