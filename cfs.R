@@ -385,8 +385,7 @@ items = items %>%
 ## 5 CPZ2          7  54.4  55.7   201   338  54.4  185.
 
 images = items %>%
-    left_join(labels) %>%
-    rename(iy1 = y) %>%
+    left_join(select(labels, aerodrome, item, label1, label2, iy1 = y)) %>%
     right_join(select(aerodromes, page, aerodrome, iy0 = y)) %>%
     arrange(item, page, line, chunk) %>%
     group_by(aerodrome) %>%
