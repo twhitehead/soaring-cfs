@@ -749,8 +749,16 @@ while (changes > 0 & tries < 10) {
     tries = tries+1
 }
 
+
 ## Collapse text on combined lines for final results.
 ##
+##    item chunk paragraph text                                                                                          page  line
+##   <int> <int>     <int> <chr>                                                                                        <dbl> <int>
+## 1     1     1         1 N43 50 10 W79 01 02 Adj 11°W (2013) UTC-5(4) Elev 300’ VTA A5000                                 3     1
+## 2     2     1         1 Ajax Pickering Gen Hosp 905-683-2320 Cert PPR                                                    3     1
+## 3     3     1         1 NOTAM FILE CYOO                                                                                  3     1
+## 4     4     1         1 London 866-WXBRIEF (Toll free within Canada) or 866-541-4104 (Toll free within Canada & USA)     3     1
+## 5     5     1         1 FATO/TLOF 86’ x 86’ ASPH/GRASS Safety Area 114’ x 114’ GRASS                                     3     1
 
 final = prob %>%
     arrange(item, page, line, chunk) %>%
