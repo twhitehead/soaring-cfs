@@ -716,7 +716,7 @@ while (changes > 0 & tries < 10) {
         mutate(across(starts_with('count'), ~ replace_na(.x,0)))
 
 
-    ## Add in the counts for the word locations.
+    ## Estimate the log odds of split vs non-split based on the word counts.
     ##
     ##    item  page  line chunk text                                  wrap1 wrap2    x0    x1    y0    y1 margin word0 word1          prob paragraph label1    label2 count0 count0_ count1 count1_
     ##   <int> <dbl> <int> <int> <chr>                                 <dbl> <dbl> <dbl> <dbl> <dbl> <dbl>  <dbl> <chr> <chr>         <dbl>     <int> <fct>     <fct>   <int>   <int>  <int>   <int>
