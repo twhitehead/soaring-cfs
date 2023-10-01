@@ -798,15 +798,15 @@ locations = final %>%
     select(aerodrome, latitude, longitude, elevation)
 
 
-## An example of extracting the runways and their directions, lengths, and widths.
+## An example of extracting the runways and their direction, length, width, and description.
 ##
-##   aerodrome  item  page  line direction1 side1 direction2 side2 length width
-##   <fct>     <int> <dbl> <int>      <dbl> <fct>      <dbl> <fct>  <int> <int>
-## 1 CNS4         17     4     1         70 NA           250 NA      2020   100
-## 2 CAP2         27     5     1        176 NA           356 NA      2257    75
-## 3 CNY4         60     8     1        180 NA           360 NA      2300    50
-## 4 CKB6         79    10     1        120 NA           300 NA      3609   100
-## 5 CYYW         91    11     1        123 NA           303 NA      4006   100
+##   aerodrome  item  page  line direction1 side1 direction2 side2 length width description
+##   <fct>     <int> <dbl> <int>      <dbl> <fct>      <dbl> <fct>  <int> <int> <chr>
+## 1 CNS4         17     4     1         70 NA           250 NA      2020   100 turf
+## 2 CAP2         27     5     1        176 NA           356 NA      2257    75 TURF
+## 3 CNY4         60     8     1        180 NA           360 NA      2300    50 turf/snow Thld 18 displ 200´ & Thld 36 displ 200´
+## 4 CKB6         79    10     1        120 NA           300 NA      3609   100 gravel Rwy 30 down 0.44%.
+## 5 CYYW         91    11     1        123 NA           303 NA      4006   100 asphalt
 
 runways = final %>%
     arrange(item, page, line, chunk) %>%
@@ -821,13 +821,20 @@ runways = final %>%
                                         '(?<dir21>[0-9]{2})(?<side1>[LR])? ?(?:\\((?<dir31>[0-9]{3}).?\\))?/',
                                         '(?<dir22>[0-9]{2})(?<side2>[LR])? ?(?:\\((?<dir32>[0-9]{3}).?\\))? ',
                                         '(?<length>[0-9,]+)[xX](?<width>[0-9,]+)')) %>%
-               map(as_tibble,.name_repair = 'unique_quiet')) %>%
-    unnest(runway) %>%
-    mutate(across(starts_with('dir') | length | width,  \(s) as.integer(str_remove_all(s, ','))),
+               map(as_tibble,.name_repair = 'unique_quiet'),
+           description = str_split(text,str_c(' ?Rwy ',
+                                              '([0-9]{2})([LR])? ?(?:\\(([0-9]{3}).?\\))?/',
+                                              '([0-9]{2})([LR])? ?(?:\\(([0-9]{3}).?\\))? ',
+                                              '([0-9,]+)[xX]([0-9,]+) ?')) %>%
+               map(tail,-1)) %>%
+    unnest(c(runway,description)) %>%
+    ungroup() %>%
+    mutate(runway = row_number(),
+           across(starts_with('dir') | length | width,  \(s) as.integer(str_remove_all(s, ','))),
            side1 = fct(side1), side2 = fct(side2),
            direction1 = coalesce(dir31, dir21*10),
            direction2 = coalesce(dir32, dir22*10)) %>%
-    select(aerodrome, item, page, line, direction1, side1, direction2, side2, length, width)
+    select(aerodrome, page, runway, direction1, side1, direction2, side2, length, width, description)
 
 
 ## An example of extracting the contact frequencies.
