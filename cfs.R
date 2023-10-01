@@ -688,7 +688,6 @@ while (changes > 0 & tries < 10) {
         select(label1, label2, words)
 
 
-
     ## Calculate counts for start of paragraph, end of paragraph, and it the middle. Use 1 for start and 0 for end
     ## so when we check for end followed by start it goes 0 1 and not 1 0.
     ##
