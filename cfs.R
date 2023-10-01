@@ -877,3 +877,51 @@ imagemagik = images %>%
            .keep = 'none')
 
 
+## ----------------------------------------------------------------------------------------------------------------
+## CUP FILE GENERATION
+
+## Build the required cup records.
+##
+##   name                    code  country lat       lon        elev   style rwdir rwlen  rwwidth freq    desc  userdata                                                                                                                   pics    
+##   <chr>                   <fct> <chr>   <chr>     <chr>      <chr>  <dbl> <chr> <chr>  <chr>   <chr>   <fct> <chr>                                                                                                                      <chr>   
+## 1 Alexandria              CNS4  CA      4553.333N 07498.667W 260ft      4 070   2020ft 100ft   123.200 ATF   NA                                                                                                                         CNS4.jpg
+## 2 Allan Park              CAP2  CA      4428.756N 08152.222W 926ft      4 176   2257ft 75ft    122.800 ATF   NA                                                                                                                         CAP2.jpg
+## 3 Alliston                CNY4  CA      4429.333N 08033.333W 720ft      4 180   2300ft 50ft    123.200 ATF   NA                                                                                                                         CNY4.jpg
+## 4 Angling Lake/Wapekeka   CKB6  CA      5435.867N 08992.711W 712ft      4 120   3609ft 100ft   123.200 ATF   NA                                                                                                                         CKB6.jpg
+## 5 Armstrong               CYYW  CA      5047.022N 08945.600W 1059ft     4 123   4006ft 100ft   122.800 ATF   NA                                                                                                                         CYYW.jpg
+
+cup = runways %>%
+    arrange(aerodrome, runway) %>%
+    group_by(aerodrome) %>%
+    summarize(across(everything(),first)) %>%
+    left_join(select(aerodromes, aerodrome, name)) %>%
+    left_join(select(locations, aerodrome, latitude, longitude, elevation)) %>%
+    left_join(comms %>%
+              filter(contact %in% contacts) %>%
+              arrange(aerodrome, fct_relevel(contact, !!!contacts)) %>%
+              group_by(aerodrome)  %>%
+              summarize(across(c(contact,frequency), first)) %>%
+              ungroup() %>%
+              mutate(frequency = replace_na(frequency, "123.2"))) %>%
+    left_join(final %>%
+              arrange(item,line,chunk) %>%
+              left_join(select(labels, aerodrome, item, label1, label2)) %>%
+              filter(label1 == 'RWY DATA' & is.na(label2)) %>%
+              group_by(aerodrome) %>%
+              summarize(rwydata = str_flatten(text, '\n'))) %>%
+    mutate(name = name,
+           code = aerodrome,
+           country = 'CA',
+           lat = sprintf("%08.3f%s", abs(latitude *60 + trunc(latitude )*40), if_else(latitude  >= 0, 'N', 'S')),
+           lon = sprintf("%09.3f%s", abs(longitude*60 + trunc(longitude)*40), if_else(longitude >= 0, 'E', 'W')),
+           elev = sprintf("%.0fft", elevation),
+           style = 4,
+           rwdir = sprintf("%03.0f", direction1),
+           rwlen = sprintf("%.0fft", length),
+           rwwidth = sprintf("%.0fft", width),
+           freq = sprintf("%7.3f", as.double(frequency)),
+           desc = rwydata,
+           userdata = '',
+           pics = sprintf('%s.jpg', aerodrome),
+           .keep = 'none') %>%
+    write_csv('cfs.cup', na = '')
