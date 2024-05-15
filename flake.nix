@@ -1,5 +1,5 @@
 {
-  description = "Python with plotnine";
+  description = "CFS Analysis Tools";
 
   outputs = { self, nixpkgs }: {
 
@@ -18,7 +18,7 @@
         ]
       );
 
-      rGGPlot = rWrapper.override {
+      rTidyverse = rWrapper.override {
         packages = with rPackages; [
           tidyverse
 #          gridExtra
@@ -27,10 +27,9 @@
       };
 
       default = buildEnv {
-        name = "GGPlot and PlotNine";
+        name = "cfstools";
         paths = with self.packages.x86_64-linux; [
-          pythonPlotNine
-          rGGPlot
+          rTidyverse
           imagemagick
         ];
       };
