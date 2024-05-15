@@ -884,6 +884,135 @@ imagemagik = images %>%
 
 
 ## ----------------------------------------------------------------------------------------------------------------
+## RUNWAY SURFACE EXTRACTION
+
+## Breakup up runway descriptions into space, word, number, and token (other single characters) types.
+##
+##   runway start   end word  type     cut index change
+##    <int> <int> <int> <chr> <fct>  <int> <int> <lgl>
+## 1      1     1     4 turf  word       1     1 TRUE
+## 2      2     1     4 turf  word       1     1 TRUE
+## 3      3     1     4 turf  word       2     1 TRUE
+## 4      3     6     9 snow  word       2     2 TRUE
+## 5      3    11    14 thld  word       2     3 TRUE
+
+prob = runways %>%
+    mutate(slices = str_locate_all(description, str_c(' +','|',
+                                                      '[A-Za-z]+','|',
+                                                      '[0-9][0-9,]*(?:\\.[0-9,]*[0-9])?','|',
+                                                      '[^ ]')) %>%
+               map(as_tibble)) %>%
+    unnest(slices) %>%
+    mutate(word = str_sub(description, start, end),
+           type = fct(case_when(str_detect(word,'^ +$')                               ~ 'space',
+                                str_detect(word,'^[A-Za-z]+$')                        ~ 'word',
+                                str_detect(word,'^[0-9][0-9,]*(?:\\.[0-9,]*[0-9])?$') ~ 'number',
+                                str_detect(word,'^[^ ]$')                             ~ 'token')),
+           word = case_match(type,
+                             'space'  ~ '',
+                             'word'   ~ str_to_lower(word),
+                             'number' ~ as.character(trunc(log10(as.double(word)))),
+                             'token'  ~ word)) %>%
+    group_by(runway) %>%
+    mutate(cut = cumall(type != 'space')) %>%
+    filter(type != 'space') %>%
+    mutate(runway, type, word, start, end,
+           index = row_number(),
+           cut = sum(cut), change = TRUE,
+           .keep = 'none')
+
+
+## Iterate on description cut points based on the frequency of words appearing on both sides of the cut points.
+##
+##   runway start   end word  type     cut index change     prob0 prob1     prob_ count0 count1 count_
+##    <int> <int> <int> <chr> <fct>  <int> <int> <lgl>      <dbl> <dbl>     <dbl>  <int>  <int>  <dbl>
+## 1      1     1     4 turf  word       1     1 FALSE   -0.00506 -4.60  -0.00506    196      1    197
+## 2      2     1     4 turf  word       1     1 FALSE   -0.00506 -4.60  -0.00506    196      1    197
+## 3      3     1     4 turf  word       2     1 FALSE   -0.00506 -6.39  -1.80       196      1    197
+## 4      3     6     9 snow  word       2     2 FALSE   -0.00506 -1.79  -0.00506      5      0      5
+## 5      3    11    14 thld  word       2     3 FALSE   -4.84     0     -4.84         0    125    125
+
+tries = 0
+changes = ( prob %>%
+            group_by(runway, change) %>%
+            summarize() %>%
+            ungroup() %>%
+            summarize(n = sum(change)) )$n
+
+while (changes > 0 & tries < 10) {
+
+    print(str_c('There were ', changes, ' changes'))
+
+    ## Calculate counts for words before and after surface part of description.
+    ##
+    ##   word         count0 count1 count_
+    ##   <chr>         <int>  <int>  <int>
+    ## 1 &                 0      5      5
+    ## 2 (1500`);          0      1      1
+    ## 3 (1676`)           0      1      1
+    ## 4 (1682´            0      1      1
+    ## 5 (screenings)      0      1      1
+
+    monograms = prob %>%
+        group_by(word) %>%
+        summarize(count0 = sum(index <= cut),
+                  count1 = sum(index >  cut),
+                  count_ = n()) %>%
+        mutate(across(starts_with('count'), ~ replace_na(.x,0)))
+
+    ## Estimate unnormalized log odds for each cut point based the word counts.
+    ##
+    ##   runway word      index   cut change count0 count1 count_     prob0 prob1     prob_
+    ##    <int> <chr>     <int> <int> <lgl>   <int>  <int>  <dbl>     <dbl> <dbl>     <dbl>
+    ## 1      1 turf          1     1 FALSE     107      1    108  -0.00922 -4.00  -0.00922
+    ## 2      2 TURF          1     1 FALSE      61      0     61   0       -4.13   0
+    ## 3      3 turf/snow     1     1 FALSE       4      0      4   0       -1.61   0
+    ## 4      3 Thld          2     1 FALSE       0    124    124  -4.83     0     -4.83
+    ## 5      3 18            3     1 FALSE       0      4      4  -6.44     0     -6.44
+
+    prob = prob %>%
+        select(!starts_with('count')) %>%
+        left_join(monograms) %>%
+        arrange(runway, index) %>%
+        group_by(runway) %>%
+        mutate(count0 = count0 - (index <= cut),
+               count1 = count1 - (index >  cut),
+               count_ = count_ - 1,
+               prob0 =     cumsum(    log(count0+1) - log(count_+1)),
+               prob1 = rev(cumsum(rev(log(count1+1) - log(count_+1)))),
+               prob_ = prob0 + lead(prob1, default = 0),
+               change = cut != which.max(prob_),
+               cut = which.max(prob_))
+
+    changes = ( prob %>%
+                group_by(runway, change) %>%
+                summarize() %>%
+                ungroup() %>%
+                summarize(n = sum(replace_na(change, 0))) )$n
+    tries = tries+1
+
+}
+
+
+## Collapse words up to cut for final results.
+##
+##   runway aerodrome  page direction1 side1 direction2 side2 length width description                                       surface
+##    <int> <fct>     <dbl>      <dbl> <fct>      <dbl> <fct>  <int> <int> <chr>                                             <fct>
+## 1      1 CNS4          4         70 NA           250 NA      2020   100 turf                                              turf
+## 2      2 CAP2          5        176 NA           356 NA      2257    75 TURF                                              TURF
+## 3      3 CNY4          8        180 NA           360 NA      2300    50 turf/snow Thld 18 displ 200´ & Thld 36 displ 200´ turf/snow
+## 4      4 CKB6         10        120 NA           300 NA      3609   100 gravel Rwy 30 down 0.44%.                         gravel
+## 5      5 CYYW         11        123 NA           303 NA      4006   100 asphalt                                           asphalt
+
+runways = prob %>%
+    filter(index == cut) %>%
+    select(runway,end) %>%
+    right_join(runways) %>%
+    mutate(surface = fct(map2_chr(description,end,str_sub,start=1)),
+           end = NULL)
+
+
+## ----------------------------------------------------------------------------------------------------------------
 ## CUP FILE GENERATION
 
 ## Build the required cup records.
