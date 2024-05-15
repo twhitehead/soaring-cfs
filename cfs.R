@@ -815,19 +815,25 @@ runways = final %>%
               line = first(line)) %>%
     left_join(select(labels, item, aerodrome, label1, label2)) %>%
     filter(label1 == 'RWY DATA', is.na(label2)) %>%
-    mutate(runway = str_match_all(text,
-                                  str_c('Rwy ',
-                                        '(?<dir21>[0-9]{2})(?<side1>[LR])? ?(?:\\((?<dir31>[0-9]{3}).?\\))?/',
-                                        '(?<dir22>[0-9]{2})(?<side2>[LR])? ?(?:\\((?<dir32>[0-9]{3}).?\\))? ',
-                                        '(?<length>[0-9,]+)[xX](?<width>[0-9,]+)')) %>%
-               map(as_tibble,.name_repair = 'unique_quiet'),
-           description = str_split(text,str_c(' ?Rwy ',
-                                              '([0-9]{2})([LR])? ?(?:\\(([0-9]{3}).?\\))?/',
-                                              '([0-9]{2})([LR])? ?(?:\\(([0-9]{3}).?\\))? ',
-                                              '([0-9,]+)[xX]([0-9,]+) ?')) %>%
-               map(tail,-1)) %>%
-    unnest(c(runway,description)) %>%
-    ungroup() %>%
+    mutate(slices = str_locate_all(text,
+                                   str_c('^','|',
+                                         '\\bRwy ',
+                                         '([0-9]{2})([LR])? ?(?:\\(([0-9]{3}).?\\))?/',
+                                         '([0-9]{2})([LR])? ?(?:\\(([0-9]{3}).?\\))? ',
+                                         '([0-9,]+)[xX]([0-9,]+)\\b','|',
+                                         '\\bRESA\\b','|',
+                                         '\\bRAG\\b')) %>%
+               map(\(table) as_tibble(table) %>%
+                            mutate(end = lead(start-1,default=-1)))) %>%
+    unnest(slices) %>%
+    mutate(text = str_trim(pmap_chr(list(text,start,end),str_sub)),
+           runways = str_match_all(text,
+                                   str_c('^Rwy ',
+                                         '(?<dir21>[0-9]{2})(?<side1>[LR])? ?(?:\\((?<dir31>[0-9]{3}).?\\))?/',
+                                         '(?<dir22>[0-9]{2})(?<side2>[LR])? ?(?:\\((?<dir32>[0-9]{3}).?\\))? ',
+                                         '(?<length>[0-9,]+)[xX](?<width>[0-9,]+) ?(?<description>.*)?$')) %>%
+               map(as_tibble,.name_repair = 'unique_quiet')) %>%
+    unnest(runways) %>%  # keep_empty=TRUE
     mutate(runway = row_number(),
            across(starts_with('dir') | length | width,  \(s) as.integer(str_remove_all(s, ','))),
            side1 = fct(side1), side2 = fct(side2),
