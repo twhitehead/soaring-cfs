@@ -909,6 +909,22 @@ cup = runways %>%
               filter(label1 == 'RWY DATA' & is.na(label2)) %>%
               group_by(aerodrome) %>%
               summarize(rwydata = str_flatten(text, '\n'))) %>%
+    left_join(final %>%
+              arrange(item,line,chunk) %>%
+              left_join(select(labels, aerodrome, item, label1, label2)) %>%
+              filter(label1 == 'PRO' & is.na(label2)) %>%
+              group_by(aerodrome) %>%
+              summarize(procedure = str_flatten(text, '\n'))) %>%
+    left_join(final %>%
+              arrange(item,paragraph,chunk) %>%
+              group_by(item) %>%
+              summarize(text = str_flatten(text, '\n')) %>%
+              left_join(labels) %>%
+              mutate(text = str_c(str_c(label1, ':', replace_na(str_c(label2, ':'), '')),
+                                  ' ',
+                                  text)) %>%
+              group_by(aerodrome) %>%
+              summarize(cfs = str_flatten(text, '\n\n'))) %>%
     mutate(name = name,
            code = aerodrome,
            country = 'CA',
@@ -921,7 +937,7 @@ cup = runways %>%
            rwwidth = sprintf("%.0fft", width),
            freq = sprintf("%7.3f", as.double(frequency)),
            desc = rwydata,
-           userdata = '',
+           userdata = cfs,
            pics = sprintf('%s.jpg', aerodrome),
            .keep = 'none') %>%
     write_csv('cfs.cup', na = '')
