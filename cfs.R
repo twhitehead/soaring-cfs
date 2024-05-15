@@ -789,7 +789,7 @@ locations = final %>%
                                 str_c('N(?<latD>\\d{2}) (?<latM>\\d{2})(?: (?<latS>\\d{2}))? ',
                                       'W(?<lonD>\\d{2,3}) (?<lonM>\\d{2})(?: (?<lonS>\\d{2}))?')) %>%
                as_tibble(.name_repair = 'unique_quiet'),
-           elevation = as.integer(str_extract(text, 'Elev (-?\\d+).?', 1))) %>%
+           elevation = as.integer(str_extract(text, '(Elev|ELEV) (-?\\d+).?', 2))) %>%
     unpack(location) %>%
     mutate(across(starts_with('lat') | starts_with('lon'),  as.integer),
            latitude  =  latD + latM/60 + replace_na(latS, 0)/3600,
