@@ -877,8 +877,8 @@ comms = final %>%
 
 imagemagik = images %>%
     mutate(aerodrome, page,
-           command = sprintf('magick -density 288 -extract %.0fx%.0f+%.0f+%.0f %s.pdf\'[%.0f]\' %s.jpg',
-                           (x1-x0)*4, (y1-y0)*4, x0*4, y0*4, basename, page-1, aerodrome),
+           command = sprintf('magick -type TrueColor -density 288 -extract %.0fx%.0f+%.0f+%.0f %s.pdf\'[%.0f]\' %s.jpg',
+                             (x1-x0)*4, (y1-y0)*4, x0*4, y0*4, basename, page-1, aerodrome),
            result = map_int(command, system),
            .keep = 'none')
 
