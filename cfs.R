@@ -802,17 +802,20 @@ locations = final %>%
     select(aerodrome, latitude, longitude, elevation)
 
 
-## An example of extracting the runways and their direction, length, width, and description.
-##
-##   aerodrome  item  page  line direction1 side1 direction2 side2 length width description
-##   <fct>     <int> <dbl> <int>      <dbl> <fct>      <dbl> <fct>  <int> <int> <chr>
-## 1 CNS4         17     4     1         70 NA           250 NA      2020   100 turf
-## 2 CAP2         27     5     1        176 NA           356 NA      2257    75 TURF
-## 3 CNY4         60     8     1        180 NA           360 NA      2300    50 turf/snow Thld 18 displ 200´ & Thld 36 displ 200´
-## 4 CKB6         79    10     1        120 NA           300 NA      3609   100 gravel Rwy 30 down 0.44%.
-## 5 CYYW         91    11     1        123 NA           303 NA      4006   100 asphalt
+## ----------------------------------------------------------------------------------------------------------------
+## RUNWAY
 
-runways = final %>%
+## Break up the runway entries.
+##
+##    item text                                                                                                      page  line aerodrome label1   label2 start   end entry
+##   <int> <chr>                                                                                                    <dbl> <int> <fct>     <fct>    <fct>  <int> <dbl> <int>
+## 1    17 Rwy 07/25 2020x100 turf                                                                                      4     1 CNS4      RWY DATA NA         1    -1     1
+## 2    27 Rwy 18(176°)/36(356°) 2257x75 TURF                                                                           5     1 CAP2      RWY DATA NA         1    -1     2
+## 3    60 Rwy 18/36 2300x50 turf/snow Thld 18 displ 200´ & Thld 36 displ 200´                                          8     1 CNY4      RWY DATA NA         1    -1     3
+## 4    79 Rwy 12(120°)/30(300°) 3609x100 gravel Rwy 30 down 0.44%.                                                    10     1 CKB6      RWY DATA NA         1    -1     4
+## 5    91 Rwy 12(123°)/30(303°) 4006x100 asphalt                                                                      11     1 CYYW      RWY DATA NA         1    -1     5
+
+entries = final %>%
     arrange(item, page, line, chunk) %>%
     group_by(item) %>%
     summarize(text = str_flatten(text, ' '),
@@ -832,7 +835,21 @@ runways = final %>%
                             mutate(end = lead(start-1,default=-1)))) %>%
     unnest(slices) %>%
     mutate(text = str_trim(pmap_chr(list(text,start,end),str_sub)),
-           runways = str_match_all(text,
+           entry = row_number())
+
+
+## Extract the direction, side, length, width, qualifier, surfaces, and the rest as notes.
+##
+##   aerodrome  page entry direction1 side1 direction2 side2 length width qualifier surface1 surface2 notes
+##   <fct>     <dbl> <int>      <dbl> <fct>      <dbl> <fct>  <int> <int> <chr>     <fct>    <fct>    <chr>
+## 1 CKB6         10     4        120 NA           300 NA      3609   100 NA        GRVL     NA       Rwy 30 down 0.44%.
+## 2 CYYW         11     5        123 NA           303 NA      4006   100 NA        ASPH     NA       NA
+## 3 CNP3         12     6        100 NA           280 NA      3937    75 NA        ASPH     NA       NA
+## 4 CNP3         12     7        163 NA           343 NA      2360    50 NA        GRVL     NA       200´ thld of each rwy asphalt
+## 5 CYIB         18    17         40 NA           220 NA      3495   100 NA        ASPH     NA       Rwy 04 up 0.69%
+
+runways = entries %>%
+    mutate(runways = str_match_all(text,
                                    str_c('^Rwy ',
                                          '(?<number1>[0-9]{2})(?<side1>[LR])? ?(?:\\((?<direction1>[0-9]{3}).?\\))?/',
                                          '(?<number2>[0-9]{2})(?<side2>[LR])? ?(?:\\((?<direction2>[0-9]{3}).?\\))? ',
@@ -842,16 +859,22 @@ runways = final %>%
                                          '(?:/(?<word2>',str_flatten(surfaces$word,'|'),'))?\\.?',
                                          '(?:,? (?<notes>.*))?$')) %>%
                map(as_tibble,.name_repair = 'unique_quiet')) %>%
-    unnest(runways) %>%  # keep_empty=TRUE
+    unnest(runways) %>%
     mutate(runway = row_number(),
            across(number1 | direction1 | number2 | direction2 | length | width,  \(s) as.integer(str_remove_all(s, ','))),
            side1 = fct(side1), side2 = fct(side2)) %>%
     left_join(select(surfaces, word1=word, surface1=surface), relationship = 'many-to-one') %>%
     left_join(select(surfaces, word2=word, surface2=surface), relationship = 'many-to-one') %>%
-    select(aerodrome, page, runway, number1, side1, direction1, number2, side2, direction2, length, width, qualifier, surface1, surface2, notes)
+    select(aerodrome, page, entry, number1, side1, direction1, number2, side2, direction2, length, width, qualifier, surface1, surface2, notes)
+
+entries = entries %>%
+    anti_join(runways)
 
 
-## An example of extracting the contact frequencies.
+## ----------------------------------------------------------------------------------------------------------------
+## FREQUENCIES
+
+## Extract the contact frequencies.
 ##
 ##   aerodrome  page  line type  frequency
 ##   <fct>     <dbl> <int> <fct> <chr>
@@ -906,7 +929,7 @@ imagemagik = images %>%
 ## 5 Angling Lake/Wapekeka   CKB6  CA      5350.950N 08934.767W 713ft      0 120   3609ft 100ft   123.200 12/30 3609x100ft gravel Rwy 30 down 0.44%.                         "REF: N53 50 57 W89 34 46 1.5W 5°W UTC-6(5) Elev 713´ A5017 LO3 CAP\n\nOPR: Go… CKB6…
 
 cup = runways %>%
-    arrange(aerodrome, runway) %>%
+    arrange(aerodrome, entry) %>%
     group_by(aerodrome) %>%
     summarize(rwydata = str_flatten(str_c(sprintf("%02d%s/%02d%s %dx%d",
                                                   number1, replace_na(as.character(side1), ''),
