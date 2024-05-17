@@ -663,6 +663,13 @@ prob = items %>%
 ## Iterate on combining lines into paragraphs based on whether the margin would have forced a break and the
 ## frequency of the appearance of the words on both sides in the other combinations.
 ##
+##    item  page  line chunk text                                                                             wrap1 wrap2    x0    x1    y0    y1 margin word0 word1  prob_ change split paragraph label1 label2  prob0 prob1   prob count0 count0_ count1 count1_
+##   <int> <dbl> <int> <int> <chr>                                                                            <dbl> <dbl> <dbl> <dbl> <dbl> <dbl>  <dbl> <chr> <chr>  <dbl> <lgl>  <lgl>     <int> <fct>  <fct>   <dbl> <dbl>  <dbl>  <int>   <dbl>  <int>   <dbl>
+## 1     1     3     1     1 N43 50 09 W79 01 03 Adj 11°W (2013) UTC-5(4) Elev 301’ VTA A5000                  12.8  22.5  77.8  322.  197.  205.    339 NA    N43   NA     NA     NA            1 REF    NA     NA     NA     NA        NA      NA     NA      NA
+## 2     2     3     1     1 Lakeridge Health 905-683-2320 Cert NVIS OPS AUTH PPR                              30.7  52.8  77.8  275.  210.  218.    339 NA    Lake… NA     NA     NA            1 OPR    NA     NA     NA     NA        NA      NA     NA      NA
+## 3     4     3     1     1 London 866-WXBRIEF (Toll free within Canada) or 866-541-4104 (Toll free within    23.3  71.0  77.8  330.  232.  240.    339 NA    Lond… NA     NA     NA            1 FLT P… FIC    NA     NA     NA        NA      NA     NA      NA
+## 4     4     3     2     1 Canada & USA)                                                                     24.5  31.1  77.8  127.  240.  248.    339 with… Cana… -0.693 FALSE  FALSE         1 FLT P… FIC    -6.75  -6.06 -13.5       0     851      0     426
+## 5     5     3     1     1 FATO/TLOF 86’ dia CONC/ASPH Safety Area 115’ dia                                  38.5  49.7  77.8  251.  254.  261.    339 NA    FATO… NA     NA     NA            1 HELI … NA     NA     NA     NA        NA      NA     NA      NA
 
 tries = 0
 changes = ( prob %>%
