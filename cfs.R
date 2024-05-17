@@ -777,9 +777,9 @@ final = prob %>%
 
 
 ## ----------------------------------------------------------------------------------------------------------------
-## SAMPLE OUTPUT
+## LOCATION
 
-## An example of extracting the longitude and latitude in decimal degrees and elevation.
+## Extract the longitude and latitude in decimal degrees and elevation.
 ##
 ##   aerodrome latitude longitude
 ##   <fct>        <dbl>     <dbl>
@@ -903,6 +903,9 @@ comms = final %>%
            contact = label2) %>%
     select(aerodrome, item, page, line, contact, frequency)
 
+
+## ----------------------------------------------------------------------------------------------------------------
+## IMAGES
 
 ## An example of extracting the images (requires imagemagik).
 ##
