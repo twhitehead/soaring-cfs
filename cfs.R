@@ -939,7 +939,7 @@ imagemagik = images %>%
 ## 5 Angling Lake/Wapekeka   CKB6  CA      5350.950N 08934.767W 713ft      0 120   3609ft 100ft   123.200 12/30 3609x100ft gravel Rwy 30 down 0.44%.                         "REF: N53 50 57 W89 34 46 1.5W 5°W UTC-6(5) Elev 713´ A5017 LO3 CAP\n\nOPR: Go… CKB6…
 
 cup = runways %>%
-    arrange(aerodrome, entry) %>%
+    arrange(aerodrome, desc(length), desc(width), entry) %>%
     group_by(aerodrome) %>%
     summarize(rwydata = str_flatten(str_c(sprintf("%02d%s/%02d%s %dx%d",
                                                   number1, replace_na(as.character(side1), ''),
