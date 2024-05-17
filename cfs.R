@@ -816,14 +816,14 @@ runways = final %>%
     left_join(select(labels, item, aerodrome, label1, label2)) %>%
     filter(label1 == 'RWY DATA', is.na(label2)) %>%
     mutate(slices = str_locate_all(text,
-                                   str_c('^','|',
+                                   str_c('^', '|',
                                          '\\bRwy ',
-                                         '([0-9]{2})([LR])? ?(?:\\(([0-9]{3}).?\\))?/',
-                                         '([0-9]{2})([LR])? ?(?:\\(([0-9]{3}).?\\))? ',
-                                         '([0-9,]+)[xX]([0-9,]+)\\b','|',
-                                         '\\bRESA\\b','|',
+                                         '([0-9]{2})([LR])? ?(\\(([0-9]{3}).?\\))?/',
+                                         '([0-9]{2})([LR])? ?(\\(([0-9]{3}).?\\))? ',
+                                         '([0-9,]+)[xX]([0-9,]+)\\b', '|',
+                                         '\\bRESA\\b', '|',
                                          '\\bRAG\\b')) %>%
-               map(\(table) as_tibble(table) %>%
+               map(\(table) as_tibble(table, .name_repair = 'unique_quiet') %>%
                             mutate(end = lead(start-1,default=-1)))) %>%
     unnest(slices) %>%
     mutate(text = str_trim(pmap_chr(list(text,start,end),str_sub)),
