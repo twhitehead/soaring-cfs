@@ -10,6 +10,11 @@ contacts = c('TWR','MF','MF/ATF','ATF', # COMM contacts in order of preference
 accs = c('CZEG','CZQM','CZQX','CZUL',   # Area control centers (not actual aerodromes)
          'CZVR','CZWG','CZYZ')
 
+surfaces = tibble(word =        c('WATER','SNOW','GRASS','SAND','CLAY','GRAVEL','GRVL','ASPHALT','ASPH','CONCRETE','CONC'),
+                  surface = fct(c('WATER','SNOW','GRASS','SAND','CLAY','GRVL'  ,'GRVL','ASPH'   ,'ASPH','CONC'    ,'CONC')))
+surfaces = bind_rows(surfaces,
+                     mutate(surfaces, word = str_to_lower(word)))
+
 aerodrome_x0 = 27                       # Left-hand side of aerodrome header line
 aerodrome_x1 = 337                      # Right-hand side of aerodrome header line
 
@@ -831,13 +836,19 @@ runways = final %>%
                                    str_c('^Rwy ',
                                          '(?<number1>[0-9]{2})(?<side1>[LR])? ?(?:\\((?<direction1>[0-9]{3}).?\\))?/',
                                          '(?<number2>[0-9]{2})(?<side2>[LR])? ?(?:\\((?<direction2>[0-9]{3}).?\\))? ',
-                                         '(?<length>[0-9,]+)[xX](?<width>[0-9,]+) ?(?<description>.*)?$')) %>%
+                                         '(?<length>[0-9,]+)[xX](?<width>[0-9,]+) ',
+                                         '(?:(?<qualifier>[A-Za-z]+) )?',
+                                         '(?<word1>',str_flatten(surfaces$word,'|'),')',
+                                         '(?:/(?<word2>',str_flatten(surfaces$word,'|'),'))?\\.?',
+                                         '(?:,? (?<notes>.*))?$')) %>%
                map(as_tibble,.name_repair = 'unique_quiet')) %>%
     unnest(runways) %>%  # keep_empty=TRUE
     mutate(runway = row_number(),
            across(number1 | direction1 | number2 | direction2 | length | width,  \(s) as.integer(str_remove_all(s, ','))),
            side1 = fct(side1), side2 = fct(side2)) %>%
-    select(aerodrome, page, runway, number1, side1, direction1, number2, side2, direction2, length, width, description)
+    left_join(select(surfaces, word1=word, surface1=surface), relationship = 'many-to-one') %>%
+    left_join(select(surfaces, word2=word, surface2=surface), relationship = 'many-to-one') %>%
+    select(aerodrome, page, runway, number1, side1, direction1, number2, side2, direction2, length, width, qualifier, surface1, surface2, notes)
 
 
 ## An example of extracting the contact frequencies.
@@ -882,151 +893,30 @@ imagemagik = images %>%
 
 
 ## ----------------------------------------------------------------------------------------------------------------
-## RUNWAY SURFACE EXTRACTION
-
-## Breakup up runway descriptions into space, word, number, and token (other single characters) types.
-##
-##   runway start   end word  type     cut index change
-##    <int> <int> <int> <chr> <fct>  <int> <int> <lgl>
-## 1      1     1     4 turf  word       1     1 TRUE
-## 2      2     1     4 turf  word       1     1 TRUE
-## 3      3     1     4 turf  word       2     1 TRUE
-## 4      3     6     9 snow  word       2     2 TRUE
-## 5      3    11    14 thld  word       2     3 TRUE
-
-prob = runways %>%
-    mutate(slices = str_locate_all(description, str_c(' +','|',
-                                                      '[A-Za-z]+','|',
-                                                      '[0-9][0-9,]*(?:\\.[0-9,]*[0-9])?','|',
-                                                      '[^ ]')) %>%
-               map(as_tibble)) %>%
-    unnest(slices) %>%
-    mutate(word = str_sub(description, start, end),
-           type = fct(case_when(str_detect(word,'^ +$')                               ~ 'space',
-                                str_detect(word,'^[A-Za-z]+$')                        ~ 'word',
-                                str_detect(word,'^[0-9][0-9,]*(?:\\.[0-9,]*[0-9])?$') ~ 'number',
-                                str_detect(word,'^[^ ]$')                             ~ 'token')),
-           word = case_match(type,
-                             'space'  ~ '',
-                             'word'   ~ str_to_lower(word),
-                             'number' ~ as.character(trunc(log10(as.double(word)))),
-                             'token'  ~ word)) %>%
-    group_by(runway) %>%
-    mutate(cut = cumall(type != 'space')) %>%
-    filter(type != 'space') %>%
-    mutate(runway, type, word, start, end,
-           index = row_number(),
-           cut = sum(cut), change = TRUE,
-           .keep = 'none')
-
-
-## Iterate on description cut points based on the frequency of words appearing on both sides of the cut points.
-##
-##   runway start   end word  type     cut index change     prob0 prob1     prob_ count0 count1 count_
-##    <int> <int> <int> <chr> <fct>  <int> <int> <lgl>      <dbl> <dbl>     <dbl>  <int>  <int>  <dbl>
-## 1      1     1     4 turf  word       1     1 FALSE   -0.00506 -4.60  -0.00506    196      1    197
-## 2      2     1     4 turf  word       1     1 FALSE   -0.00506 -4.60  -0.00506    196      1    197
-## 3      3     1     4 turf  word       2     1 FALSE   -0.00506 -6.39  -1.80       196      1    197
-## 4      3     6     9 snow  word       2     2 FALSE   -0.00506 -1.79  -0.00506      5      0      5
-## 5      3    11    14 thld  word       2     3 FALSE   -4.84     0     -4.84         0    125    125
-
-tries = 0
-changes = ( prob %>%
-            group_by(runway, change) %>%
-            summarize() %>%
-            ungroup() %>%
-            summarize(n = sum(change)) )$n
-
-while (changes > 0 & tries < 10) {
-
-    print(str_c('There were ', changes, ' changes'))
-
-    ## Calculate counts for words before and after surface part of description.
-    ##
-    ##   word         count0 count1 count_
-    ##   <chr>         <int>  <int>  <int>
-    ## 1 &                 0      5      5
-    ## 2 (1500`);          0      1      1
-    ## 3 (1676`)           0      1      1
-    ## 4 (1682´            0      1      1
-    ## 5 (screenings)      0      1      1
-
-    monograms = prob %>%
-        group_by(word) %>%
-        summarize(count0 = sum(index <= cut),
-                  count1 = sum(index >  cut),
-                  count_ = n()) %>%
-        mutate(across(starts_with('count'), ~ replace_na(.x,0)))
-
-    ## Estimate unnormalized log odds for each cut point based the word counts.
-    ##
-    ##   runway word      index   cut change count0 count1 count_     prob0 prob1     prob_
-    ##    <int> <chr>     <int> <int> <lgl>   <int>  <int>  <dbl>     <dbl> <dbl>     <dbl>
-    ## 1      1 turf          1     1 FALSE     107      1    108  -0.00922 -4.00  -0.00922
-    ## 2      2 TURF          1     1 FALSE      61      0     61   0       -4.13   0
-    ## 3      3 turf/snow     1     1 FALSE       4      0      4   0       -1.61   0
-    ## 4      3 Thld          2     1 FALSE       0    124    124  -4.83     0     -4.83
-    ## 5      3 18            3     1 FALSE       0      4      4  -6.44     0     -6.44
-
-    prob = prob %>%
-        select(!starts_with('count')) %>%
-        left_join(monograms) %>%
-        arrange(runway, index) %>%
-        group_by(runway) %>%
-        mutate(count0 = count0 - (index <= cut),
-               count1 = count1 - (index >  cut),
-               count_ = count_ - 1,
-               prob0 =     cumsum(    log(count0+1) - log(count_+1)),
-               prob1 = rev(cumsum(rev(log(count1+1) - log(count_+1)))),
-               prob_ = prob0 + lead(prob1, default = 0),
-               change = cut != which.max(prob_),
-               cut = which.max(prob_))
-
-    changes = ( prob %>%
-                group_by(runway, change) %>%
-                summarize() %>%
-                ungroup() %>%
-                summarize(n = sum(replace_na(change, 0))) )$n
-    tries = tries+1
-
-}
-
-
-## Collapse words up to cut for final results.
-##
-##   runway aerodrome  page direction1 side1 direction2 side2 length width description                                       surface
-##    <int> <fct>     <dbl>      <dbl> <fct>      <dbl> <fct>  <int> <int> <chr>                                             <fct>
-## 1      1 CNS4          4         70 NA           250 NA      2020   100 turf                                              turf
-## 2      2 CAP2          5        176 NA           356 NA      2257    75 TURF                                              TURF
-## 3      3 CNY4          8        180 NA           360 NA      2300    50 turf/snow Thld 18 displ 200´ & Thld 36 displ 200´ turf/snow
-## 4      4 CKB6         10        120 NA           300 NA      3609   100 gravel Rwy 30 down 0.44%.                         gravel
-## 5      5 CYYW         11        123 NA           303 NA      4006   100 asphalt                                           asphalt
-
-runways = prob %>%
-    filter(index == cut) %>%
-    select(runway,end) %>%
-    right_join(runways) %>%
-    mutate(surface = fct(map2_chr(description,end,str_sub,start=1)),
-           end = NULL)
-
-
-## ----------------------------------------------------------------------------------------------------------------
 ## CUP FILE GENERATION
 
 ## Build the required cup records.
 ##
-##   name                    code  country lat       lon        elev   style rwdir rwlen  rwwidth freq    desc  userdata                                                                                                                   pics    
-##   <chr>                   <fct> <chr>   <chr>     <chr>      <chr>  <dbl> <chr> <chr>  <chr>   <chr>   <fct> <chr>                                                                                                                      <chr>   
-## 1 Alexandria              CNS4  CA      4553.333N 07498.667W 260ft      4 070   2020ft 100ft   123.200 ATF   NA                                                                                                                         CNS4.jpg
-## 2 Allan Park              CAP2  CA      4428.756N 08152.222W 926ft      4 176   2257ft 75ft    122.800 ATF   NA                                                                                                                         CAP2.jpg
-## 3 Alliston                CNY4  CA      4429.333N 08033.333W 720ft      4 180   2300ft 50ft    123.200 ATF   NA                                                                                                                         CNY4.jpg
-## 4 Angling Lake/Wapekeka   CKB6  CA      5435.867N 08992.711W 712ft      4 120   3609ft 100ft   123.200 ATF   NA                                                                                                                         CKB6.jpg
-## 5 Armstrong               CYYW  CA      5047.022N 08945.600W 1059ft     4 123   4006ft 100ft   122.800 ATF   NA                                                                                                                         CYYW.jpg
+##   name                    code  country lat       lon        elev   style rwdir rwlen  rwwidth freq    desc                                                               userdata                                                                        pics
+##   <chr>                   <fct> <chr>   <chr>     <chr>      <chr>  <dbl> <chr> <chr>  <chr>   <chr>   <chr>                                                              <chr>                                                                           <chr>
+## 1 Ajax (Pr Ajax)          CAJ5  CA      4354.400N 07902.833W 460ft      2 040   2700ft 75ft    123.200 04/22 2700x75ft grass                                              "REF: N43 54 24 W79 02 50 Adj N 10°W (2024) UTC-5(4) Elev 460’ A1900 A5000\n\n… CAJ5…
+## 2 Alexandria              CNS4  CA      4520.000N 07437.000W 260ft      2 070   2020ft 100ft   123.200 07/25 2020x100ft grass                                             "REF: N45 20 W74 37 Adj NE 15°W UTC-5(4) Elev 260´ VTA A5000 A5002\n\nOPR: Ale… CNS4…
+## 3 Allan Park              CAP2  CA      4410.783N 08057.083W 926ft      2 176   2257ft 75ft    122.800 18/36 2257x75ft grass                                              "REF: N44 10 47 W80 57 05 1.2WNW 10°W (2015) UTC-5(4) Elev 926’ A5000\n\nOPR: … CAP2…
+## 4 Alliston                CNY4  CA      4411.000N 07950.000W 720ft      2 180   2300ft 50ft    123.200 18/36 2300x50ft grass/snow Thld 18 displ 200´ & Thld 36 displ 200´ "REF: N44 11 W79 50 1.3NE 10°W UTC-5(4) Elev 720´ VTA A5000\n\nOPR: Bob Macken… CNY4…
+## 5 Angling Lake/Wapekeka   CKB6  CA      5350.950N 08934.767W 713ft      0 120   3609ft 100ft   123.200 12/30 3609x100ft gravel Rwy 30 down 0.44%.                         "REF: N53 50 57 W89 34 46 1.5W 5°W UTC-6(5) Elev 713´ A5017 LO3 CAP\n\nOPR: Go… CKB6…
 
 cup = runways %>%
     arrange(aerodrome, runway) %>%
     group_by(aerodrome) %>%
-    summarize(across(everything(),first)) %>%
+    summarize(rwydata = str_flatten(str_c(sprintf("%02d%s/%02d%s %dx%d",
+                                                  number1, replace_na(as.character(side1), ''),
+                                                  number2, replace_na(as.character(side2), ''),
+                                                  length, width),
+                                          str_replace_na(str_c(' ', surface1,
+                                                               str_replace_na(str_c('/', surface2), '')), ''),
+                                          str_replace_na(str_c(' ', notes),    '')),
+                                    '\n'),
+              across(everything(),first)) %>%
     left_join(select(aerodromes, aerodrome, name)) %>%
     left_join(select(locations, aerodrome, latitude, longitude, elevation)) %>%
     left_join(comms %>%
@@ -1036,12 +926,6 @@ cup = runways %>%
               summarize(across(c(contact,frequency), first)) %>%
               ungroup() %>%
               mutate(frequency = replace_na(frequency, "123.2"))) %>%
-    left_join(final %>%
-              arrange(item,line,chunk) %>%
-              left_join(select(labels, aerodrome, item, label1, label2)) %>%
-              filter(label1 == 'RWY DATA' & is.na(label2)) %>%
-              group_by(aerodrome) %>%
-              summarize(rwydata = str_flatten(text, '\n'))) %>%
     left_join(final %>%
               arrange(item,line,chunk) %>%
               left_join(select(labels, aerodrome, item, label1, label2)) %>%
@@ -1064,7 +948,10 @@ cup = runways %>%
            lat = sprintf("%08.3f%s", abs(latitude *60 + trunc(latitude )*40), if_else(latitude  >= 0, 'N', 'S')),
            lon = sprintf("%09.3f%s", abs(longitude*60 + trunc(longitude)*40), if_else(longitude >= 0, 'E', 'W')),
            elev = sprintf("%.0fft", elevation),
-           style = 4,
+           style = case_match(surface1,
+                              'GRASS' ~ 2,
+                              c('ASPH','CONC') ~ 5,
+                              .default = 0),
            rwdir = sprintf("%03.0f", number1*10),
            rwlen = sprintf("%.0fft", length),
            rwwidth = sprintf("%.0fft", width),
