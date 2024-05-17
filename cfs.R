@@ -877,7 +877,7 @@ comms = final %>%
 
 imagemagik = images %>%
     mutate(aerodrome, page,
-           command = sprintf('magick -type TrueColor -density 288 -extract %.0fx%.0f+%.0f+%.0f %s.pdf\'[%.0f]\' %s.jpg',
+           command = sprintf('magick -type TrueColor -density 288 -extract %.0fx%.0f+%.0f+%.0f %s.pdf\'[%.0f]\' PNG24:%s.png',
                              (x1-x0)*4, (y1-y0)*4, x0*4, y0*4, basename, page-1, aerodrome),
            result = map_int(command, system),
            .keep = 'none')
@@ -1073,6 +1073,6 @@ cup = runways %>%
            freq = sprintf("%7.3f", as.double(frequency)),
            desc = rwydata,
            userdata = cfs,
-           pics = sprintf('%s.jpg', aerodrome),
+           pics = sprintf('%s.png', aerodrome),
            .keep = 'none') %>%
     write_csv('cfs.cup', na = '')
