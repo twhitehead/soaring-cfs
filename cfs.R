@@ -829,17 +829,15 @@ runways = final %>%
     mutate(text = str_trim(pmap_chr(list(text,start,end),str_sub)),
            runways = str_match_all(text,
                                    str_c('^Rwy ',
-                                         '(?<dir21>[0-9]{2})(?<side1>[LR])? ?(?:\\((?<dir31>[0-9]{3}).?\\))?/',
-                                         '(?<dir22>[0-9]{2})(?<side2>[LR])? ?(?:\\((?<dir32>[0-9]{3}).?\\))? ',
+                                         '(?<number1>[0-9]{2})(?<side1>[LR])? ?(?:\\((?<direction1>[0-9]{3}).?\\))?/',
+                                         '(?<number2>[0-9]{2})(?<side2>[LR])? ?(?:\\((?<direction2>[0-9]{3}).?\\))? ',
                                          '(?<length>[0-9,]+)[xX](?<width>[0-9,]+) ?(?<description>.*)?$')) %>%
                map(as_tibble,.name_repair = 'unique_quiet')) %>%
     unnest(runways) %>%  # keep_empty=TRUE
     mutate(runway = row_number(),
-           across(starts_with('dir') | length | width,  \(s) as.integer(str_remove_all(s, ','))),
-           side1 = fct(side1), side2 = fct(side2),
-           direction1 = coalesce(dir31, dir21*10),
-           direction2 = coalesce(dir32, dir22*10)) %>%
-    select(aerodrome, page, runway, direction1, side1, direction2, side2, length, width, description)
+           across(number1 | direction1 | number2 | direction2 | length | width,  \(s) as.integer(str_remove_all(s, ','))),
+           side1 = fct(side1), side2 = fct(side2)) %>%
+    select(aerodrome, page, runway, number1, side1, direction1, number2, side2, direction2, length, width, description)
 
 
 ## An example of extracting the contact frequencies.
@@ -1067,7 +1065,7 @@ cup = runways %>%
            lon = sprintf("%09.3f%s", abs(longitude*60 + trunc(longitude)*40), if_else(longitude >= 0, 'E', 'W')),
            elev = sprintf("%.0fft", elevation),
            style = 4,
-           rwdir = sprintf("%03.0f", direction1),
+           rwdir = sprintf("%03.0f", number1*10),
            rwlen = sprintf("%.0fft", length),
            rwwidth = sprintf("%.0fft", width),
            freq = sprintf("%7.3f", as.double(frequency)),
